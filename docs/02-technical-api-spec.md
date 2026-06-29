@@ -36,6 +36,8 @@ Authorization: Bearer <api_key>
 
 ## 3. 文生图接口
 
+文生图使用 `gpt-image-2` 的图片生成能力。
+
 端点:
 
 ```http
@@ -96,6 +98,8 @@ Content-Type: application/json
 注意: 若 `api.0029.org` 的代理暂不支持任意尺寸，需要在适配层降级到 `1024x1024`、`1536x1024`、`1024x1536`。
 
 ## 4. 图生图和编辑接口
+
+图生图、局部重绘和 AI 修图使用 `gpt-image-2` 的图片编辑能力。客户端优先使用 multipart/form-data 上传本地图片文件，避免把本地图片误作为不合法的 `image_url` 传入接口。
 
 端点:
 
