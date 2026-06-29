@@ -1,0 +1,84 @@
+{
+  "name": "yunqiao-pro",
+  "version": "0.1.8",
+  "private": true,
+  "description": "云桥Pro AI生图桌面端",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "build": "electron-vite build",
+    "electron:pack": "electron-builder",
+    "dist:win": "npm run build && electron-builder --win nsis",
+    "dist:win-portable": "npm run build && electron-builder --win portable",
+    "dist:mac": "npm run build && electron-builder --mac dmg",
+    "dist:mac-dir": "npm run build && electron-builder --mac dir"
+  },
+  "dependencies": {
+    "ali-oss": "^6.23.0",
+    "basic-ftp": "^6.0.1",
+    "cos-nodejs-sdk-v5": "^2.15.4",
+    "esdk-obs-nodejs": "^3.26.2",
+    "exceljs": "^4.4.0",
+    "lucide-react": "^0.468.0",
+    "minio": "^8.0.7",
+    "qiniu": "^7.15.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "ssh2-sftp-client": "^12.1.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^34.0.0",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^2.3.0",
+    "eslint": "^9.17.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.62.0",
+    "vite": "^5.4.11"
+  },
+  "build": {
+    "appId": "com.yunqiaopro.desktop",
+    "productName": "云桥Pro",
+    "npmRebuild": false,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": false
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "dir"
+      ],
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
+      "icon": "build/icon.icns",
+      "category": "public.app-category.graphics-design",
+      "identity": null
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "云桥Pro"
+    }
+  }
+}

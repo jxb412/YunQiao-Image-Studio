@@ -1,0 +1,242 @@
+[
+  {
+    "id": "ecom_packshot_white",
+    "industry": "电商零售",
+    "scene": "白底商品主图",
+    "size": "1024x1024",
+    "quality": "medium",
+    "format": "png",
+    "prompt": "为电商平台生成一张商用商品白底主图。主体是 {product_name}，产品特征为 {selling_points}。保持商品外形、颜色、包装和材质真实准确，纯白干净背景，柔光棚拍，居中构图，阴影自然，边缘清晰，细节锐利，适合淘宝、京东、拼多多上架。",
+    "avoid": "避免改变商品结构、虚假 logo、水印、乱码文字、杂乱背景、过曝反光、产品边缘变形。"
+  },
+  {
+    "id": "ecom_lifestyle_scene",
+    "industry": "电商零售",
+    "scene": "商品场景种草图",
+    "size": "1024x1536",
+    "quality": "medium",
+    "format": "png",
+    "prompt": "生成一张电商种草场景图。主体是 {product_name}，突出 {selling_points}。场景为 {scene}，整体风格 {style}，画面有真实生活氛围，商品位于视觉中心，背景干净但不空洞，光线柔和自然，色彩高级，适合详情页和小红书种草。",
+    "avoid": "保持商品外观准确，不要改变品牌包装，不要添加无关配件。"
+  },
+  {
+    "id": "ecom_detail_selling_point",
+    "industry": "电商零售",
+    "scene": "详情页卖点图",
+    "size": "1024x1536",
+    "quality": "medium",
+    "format": "png",
+    "prompt": "为电商详情页生成一张卖点视觉图。商品为 {product_name}，核心卖点是 {selling_points}。使用清晰的商业摄影构图，主体占画面 60%，周围保留干净留白，背景与卖点相关但不抢主体，光影突出材质和功能。",
+    "avoid": "不要生成复杂文字，留出顶部或右侧排版区域，避免水印、乱码、结构变形。"
+  },
+  {
+    "id": "ecom_fashion_model",
+    "industry": "电商零售",
+    "scene": "服装模特穿搭",
+    "size": "1024x1536",
+    "quality": "medium",
+    "format": "png",
+    "prompt": "生成一张服装电商模特图。服装为 {product_name}，风格 {style}，目标人群 {audience}。模特姿态自然，服装版型清晰，面料纹理真实，光线柔和，背景简洁高级，适合服装上新展示。",
+    "avoid": "重点保持服装颜色、剪裁、长度、图案准确。避免肢体畸形、手部错误、衣服结构错乱、过度修饰。"
+  },
+  {
+    "id": "ecom_beauty_texture",
+    "industry": "电商零售",
+    "scene": "美妆质感图",
+    "size": "1024x1536",
+    "quality": "high",
+    "format": "png",
+    "prompt": "生成一张高端美妆产品商业摄影图。产品为 {product_name}，突出 {selling_points}。使用微距质感、柔和高光、精致反射和干净背景，画面呈现膏体、粉质、玻璃、金属或包装材质的真实细节。构图高级，适合详情页首屏和品牌海报。",
+    "avoid": "避免包装文字错乱、产品变形、过曝反光、廉价塑料感。"
+  },
+  {
+    "id": "shortdrama_vertical_cover",
+    "industry": "短剧影视",
+    "scene": "竖版短剧封面",
+    "size": "1024x1536",
+    "quality": "medium",
+    "format": "jpeg",
+    "prompt": "生成一张短剧竖版封面。题材为 {subject}，核心冲突是 {selling_points}。画面包含 1 到 3 个主要人物，人物表情强烈，关系张力明确，电影级布光，背景为 {scene}，构图适合 9:16 手机封面，上方或下方留出标题区域。风格写实、戏剧化、高点击率。",
+    "avoid": "避免卡通感、五官崩坏、手部畸形、文字乱码、人物过多。"
+  },
+  {
+    "id": "shortdrama_character_still",
+    "industry": "短剧影视",
+    "scene": "角色定妆照",
+    "size": "1024x1536",
+    "quality": "medium",
+    "format": "png",
+    "prompt": "生成一张短剧角色定妆照。角色为 {subject}，身份设定为 {selling_points}。人物半身或全身，服装、发型、妆容符合角色身份，表情和姿态体现人物性格，背景简洁电影棚拍，方便后续统一角色形象。",
+    "avoid": "避免夸张滤镜、脸部崩坏、服装细节混乱、手部畸形。"
+  },
+  {
+    "id": "shortdrama_storyboard_mood",
+    "industry": "短剧影视",
+    "scene": "分镜气氛图",
+    "size": "1536x1024",
+    "quality": "medium",
+    "format": "png",
+    "prompt": "生成一张影视分镜气氛图。场景为 {scene}，剧情动作是 {subject}，情绪为 {style}。使用电影镜头语言，明确景别、构图、人物位置和光线方向，画面像电影剧照，适合导演、美术和摄影沟通。",
+    "avoid": "避免海报式大字、人物过多、空间逻辑混乱。"
+  },
+  {
+    "id": "manga_character_sheet",
+    "industry": "漫画动漫",
+    "scene": "角色设定",
+    "size": "1024x1536",
+    "quality": "medium",
+    "format": "png",
+    "prompt": "生成一张二次元角色设定图。角色为 {subject}，性格和身份为 {selling_points}。画风 {style}，清晰线条，干净上色，服装设计完整，姿态自然，背景简洁，突出角色轮廓和配色。适合漫画、动画、游戏前期设定。",
+    "avoid": "避免真人写实、线条脏乱、手部畸形、服装结构混乱。"
+  },
+  {
+    "id": "manga_turnaround",
+    "industry": "漫画动漫",
+    "scene": "三视图",
+    "size": "1536x1024",
+    "quality": "high",
+    "format": "png",
+    "prompt": "生成一张角色三视图设定稿。角色为 {subject}。包含正面、侧面、背面三个视图，比例统一，服装、发型、配饰保持一致，白色或浅灰背景，线条清晰，适合建模和漫画制作参考。",
+    "avoid": "不要加入复杂背景，不要改变每个视图的服装细节。"
+  },
+  {
+    "id": "manga_comic_page",
+    "industry": "漫画动漫",
+    "scene": "漫画分镜页",
+    "size": "1024x1536",
+    "quality": "medium",
+    "format": "png",
+    "prompt": "生成一页漫画分镜草图。剧情为 {subject}，场景为 {scene}，情绪为 {style}。使用 4 到 6 个分镜格，镜头有远景、中景、特写变化，角色动作清楚，画面节奏明确，黑白线稿或简洁上色。文字气泡留空，不生成具体文字。",
+    "avoid": "避免分镜混乱、角色不一致、线条脏乱。"
+  },
+  {
+    "id": "media_xiaohongshu_cover",
+    "industry": "自媒体内容",
+    "scene": "小红书封面底图",
+    "size": "1024x1536",
+    "quality": "medium",
+    "format": "jpeg",
+    "prompt": "生成一张小红书封面底图。主题是 {subject}，面向 {audience}。画面干净、高级、有生活方式氛围，色调 {color_palette}，主体明确，左侧或上方保留大面积文字留白，适合后期叠加标题。",
+    "avoid": "不要生成具体文字、二维码、水印或复杂小元素。"
+  },
+  {
+    "id": "media_douyin_cover",
+    "industry": "自媒体内容",
+    "scene": "抖音竖版封面",
+    "size": "1024x1536",
+    "quality": "medium",
+    "format": "jpeg",
+    "prompt": "生成一张抖音视频竖版封面。主题为 {subject}，核心吸引点为 {selling_points}。画面高对比、高识别度，主体大，占画面 60%，背景简洁但有冲击力，适合手机小屏快速点击。中上部留出标题区域。",
+    "avoid": "避免过多细节、低清晰度、乱码文字。"
+  },
+  {
+    "id": "brand_key_visual",
+    "industry": "品牌广告",
+    "scene": "品牌 KV 主视觉",
+    "size": "1536x1024",
+    "quality": "high",
+    "format": "png",
+    "prompt": "生成一张品牌广告 KV 主视觉。品牌为 {brand}，主题为 {subject}，核心信息为 {selling_points}。画面高级、有明确视觉锤，主体突出，构图适合线上线下传播，保留标题和 logo 排版区域。风格 {style}，色彩 {color_palette}。",
+    "avoid": "不要生成未经确认的品牌标识或乱码文字。"
+  },
+  {
+    "id": "game_character_concept",
+    "industry": "游戏美术",
+    "scene": "游戏角色概念",
+    "size": "1024x1536",
+    "quality": "medium",
+    "format": "png",
+    "prompt": "生成一张游戏角色概念设计。角色为 {subject}，职业或阵营为 {selling_points}。画风 {style}，全身展示，装备、服装、武器和轮廓清晰，姿态有角色性格，背景简洁。适合立项概念和美术方向探索。",
+    "avoid": "避免装备逻辑混乱、肢体畸形、过度细碎。"
+  },
+  {
+    "id": "interior_room_render",
+    "industry": "家装建筑",
+    "scene": "室内设计效果图",
+    "size": "1536x1024",
+    "quality": "high",
+    "format": "jpeg",
+    "prompt": "生成一张室内设计效果图。空间为 {scene}，风格 {style}，色彩为 {color_palette}。画面真实、整洁、比例准确，家具布局合理，光线自然，材质包括木材、石材、织物或金属的真实细节。适合装修方案展示。",
+    "avoid": "避免透视错误、家具悬浮、空间比例异常。"
+  },
+  {
+    "id": "travel_city_poster",
+    "industry": "文旅酒店",
+    "scene": "城市旅游海报",
+    "size": "1024x1536",
+    "quality": "medium",
+    "format": "jpeg",
+    "prompt": "生成一张城市旅游宣传海报底图。目的地为 {subject}，核心体验为 {selling_points}。画面包含标志性建筑、当地街景、自然风光或文化元素，风格 {style}，构图有旅行向往感，留出标题和日期区域。",
+    "avoid": "避免错误地标、乱码文字、游客过多。"
+  },
+  {
+    "id": "food_menu_hero",
+    "industry": "餐饮茶饮",
+    "scene": "菜品主图",
+    "size": "1024x1024",
+    "quality": "medium",
+    "format": "jpeg",
+    "prompt": "生成一张餐饮菜品主图。菜品为 {product_name}，口味卖点为 {selling_points}。食材新鲜，摆盘干净，光线自然诱人，背景符合 {scene}，适合菜单、外卖和团购平台。",
+    "avoid": "避免颜色异常、食物不可食用质感、餐具脏乱、过度油腻。"
+  },
+  {
+    "id": "education_course_cover",
+    "industry": "教育知识",
+    "scene": "课程封面",
+    "size": "1536x1024",
+    "quality": "medium",
+    "format": "jpeg",
+    "prompt": "生成一张在线课程封面底图。课程主题为 {subject}，目标学员为 {audience}。画面专业、可信、现代，包含与课程相关的抽象元素、学习场景或人物，留出标题和讲师信息区域。适合知识付费、训练营和公开课。",
+    "avoid": "不要生成具体文字。"
+  },
+  {
+    "id": "medical_aesthetic_kv",
+    "industry": "医美健康",
+    "scene": "医美机构 KV",
+    "size": "1536x1024",
+    "quality": "medium",
+    "format": "jpeg",
+    "prompt": "生成一张医美机构品牌 KV 底图。主题为 {subject}，卖点为 {selling_points}。画面干净、专业、可信，人物皮肤自然，光线柔和，高级白色或浅色空间，留出品牌和活动文字区域。",
+    "avoid": "避免过度磨皮、虚假医疗效果、夸张对比、乱码文字。"
+  },
+  {
+    "id": "b2b_industrial_equipment",
+    "industry": "工业企业与 B2B",
+    "scene": "工业设备宣传图",
+    "size": "1536x1024",
+    "quality": "medium",
+    "format": "png",
+    "prompt": "生成一张工业设备宣传图。设备为 {product_name}，卖点为 {selling_points}。画面专业、洁净、可信，设备结构清晰，金属材质真实，背景为工厂、实验室或抽象科技场景，适合官网和产品手册。",
+    "avoid": "避免设备结构错乱、危险操作、过度科幻。"
+  },
+  {
+    "id": "local_life_group_buy",
+    "industry": "房产本地生活",
+    "scene": "门店团购封面",
+    "size": "1024x1024",
+    "quality": "medium",
+    "format": "jpeg",
+    "prompt": "生成一张本地生活团购封面。门店类型为 {subject}，主推服务为 {selling_points}。画面明亮、真实、有消费场景，主体清晰，适合美团、抖音团购和朋友圈投放。留出活动标题区域。",
+    "avoid": "不要生成价格和小字。"
+  },
+  {
+    "id": "img2img_product_background",
+    "industry": "图生图续改",
+    "scene": "商品换背景",
+    "size": "1024x1024",
+    "quality": "medium",
+    "format": "png",
+    "prompt": "基于输入图片编辑。保持商品主体的外形、颜色、包装、材质和角度完全一致，将背景替换为 {scene}。新背景要与商品光线、阴影、透视自然融合，适合商用电商图。",
+    "avoid": "不要改变商品本身，不要添加额外 logo 或文字。"
+  },
+  {
+    "id": "img2img_inpaint_local",
+    "industry": "图生图续改",
+    "scene": "局部重绘",
+    "size": "auto",
+    "quality": "medium",
+    "format": "png",
+    "prompt": "只重绘遮罩区域，未遮罩区域必须保持不变。遮罩区域需要修改为 {subject}，风格、光线、透视和材质与原图一致，边缘自然融合。",
+    "avoid": "不要影响遮罩外的主体、背景、文字或构图。"
+  }
+]
