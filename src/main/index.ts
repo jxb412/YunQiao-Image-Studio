@@ -19,7 +19,7 @@ let mainWindow: BrowserWindow | null = null;
 let encryptedApiKey: Buffer | null = null;
 const FIXED_API_BASE_URL = "https://api.0029.org";
 const SUPPORTED_IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp"]);
-const UPDATE_MANIFEST_URL = "https://down.haowucm.cn/yunqiao/latest.json";
+const UPDATE_MANIFEST_URL = "https://down.haowucm.cn/latest.json";
 const GITHUB_LATEST_RELEASE_API = "https://api.github.com/repos/jxb412/YunQiao-Image-Studio/releases/latest";
 
 type UpdateDownload = {

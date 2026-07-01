@@ -79,7 +79,7 @@ jobs:
         env:
           UPDATE_PUBLIC_BASE_URL: ${{ vars.UPDATE_PUBLIC_BASE_URL }}
         run: |
-          PUBLIC_BASE_URL="${UPDATE_PUBLIC_BASE_URL:-https://down.haowucm.cn/yunqiao}"
+          PUBLIC_BASE_URL="${UPDATE_PUBLIC_BASE_URL:-https://down.haowucm.cn}"
           node scripts/create-update-manifest.mjs \
             --version "${GITHUB_REF_NAME#v}" \
             --tag "${GITHUB_REF_NAME}" \
@@ -97,36 +97,44 @@ jobs:
           generate_release_notes: true
       - name: Upload website update mirror
         env:
-          FTP_HOST: ${{ secrets.UPDATE_FTP_HOST }}
-          FTP_PORT: ${{ secrets.UPDATE_FTP_PORT }}
-          FTP_USER: ${{ secrets.UPDATE_FTP_USER }}
-          FTP_PASSWORD: ${{ secrets.UPDATE_FTP_PASSWORD }}
-          FTP_REMOTE_ROOT: ${{ vars.UPDATE_FTP_REMOTE_ROOT }}
+          SSH_HOST: ${{ secrets.UPDATE_SSH_HOST }}
+          SSH_PORT: ${{ secrets.UPDATE_SSH_PORT }}
+          SSH_USER: ${{ secrets.UPDATE_SSH_USER }}
+          SSH_PASSWORD: ${{ secrets.UPDATE_SSH_PASSWORD }}
+          SSH_REMOTE_ROOT: ${{ secrets.UPDATE_SSH_REMOTE_ROOT }}
         run: |
           set -euo pipefail
-          FTP_HOST="${FTP_HOST:-8.136.208.135}"
-          FTP_PORT="${FTP_PORT:-5555}"
-          FTP_REMOTE_ROOT="${FTP_REMOTE_ROOT:-yunqiao}"
-          if [ -z "${FTP_USER:-}" ] || [ -z "${FTP_PASSWORD:-}" ]; then
-            echo "FTP secrets are not configured; skip website mirror upload."
+          SSH_PORT="${SSH_PORT:-22}"
+          SSH_REMOTE_ROOT="${SSH_REMOTE_ROOT:-/www/wwwroot/down.haowucm.cn}"
+          if [ -z "${SSH_HOST:-}" ] || [ -z "${SSH_USER:-}" ] || [ -z "${SSH_PASSWORD:-}" ]; then
+            echo "SSH mirror secrets are not configured; skip website mirror upload."
             exit 0
           fi
 
-          upload_file() {
-            local source_file="$1"
-            local remote_path="$2"
-            curl --fail --silent --show-error --ftp-create-dirs \
-              --user "${FTP_USER}:${FTP_PASSWORD}" \
-              -T "${source_file}" \
-              "ftp://${FTP_HOST}:${FTP_PORT}/${remote_path}"
-          }
+          sudo apt-get update
+          sudo apt-get install -y sshpass
+          export SSHPASS="${SSH_PASSWORD}"
+
+          SSH_OPTIONS=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p "${SSH_PORT}")
+          SCP_OPTIONS=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P "${SSH_PORT}")
+          SSH_TARGET="${SSH_USER}@${SSH_HOST}"
+
+          sshpass -e ssh "${SSH_OPTIONS[@]}" "${SSH_TARGET}" \
+            "mkdir -p '${SSH_REMOTE_ROOT}/releases/${GITHUB_REF_NAME}' '${SSH_REMOTE_ROOT}/yunqiao/releases/${GITHUB_REF_NAME}'"
 
           for file in release-assets/*; do
             [ -f "${file}" ] || continue
             filename="$(basename "${file}")"
             [ "${filename}" = "latest.json" ] && continue
-            upload_file "${file}" "${FTP_REMOTE_ROOT}/releases/${GITHUB_REF_NAME}/${filename}"
+            sshpass -e scp "${SCP_OPTIONS[@]}" "${file}" \
+              "${SSH_TARGET}:${SSH_REMOTE_ROOT}/releases/${GITHUB_REF_NAME}/${filename}"
           done
 
-          upload_file release-assets/latest.json "${FTP_REMOTE_ROOT}/latest.json"
-          upload_file release-assets/latest.json "${FTP_REMOTE_ROOT}/releases/${GITHUB_REF_NAME}/latest.json"
+          sshpass -e scp "${SCP_OPTIONS[@]}" release-assets/latest.json \
+            "${SSH_TARGET}:${SSH_REMOTE_ROOT}/latest.json"
+          sshpass -e scp "${SCP_OPTIONS[@]}" release-assets/latest.json \
+            "${SSH_TARGET}:${SSH_REMOTE_ROOT}/releases/${GITHUB_REF_NAME}/latest.json"
+          sshpass -e scp "${SCP_OPTIONS[@]}" release-assets/latest.json \
+            "${SSH_TARGET}:${SSH_REMOTE_ROOT}/yunqiao/latest.json"
+          sshpass -e scp "${SCP_OPTIONS[@]}" release-assets/latest.json \
+            "${SSH_TARGET}:${SSH_REMOTE_ROOT}/yunqiao/releases/${GITHUB_REF_NAME}/latest.json"

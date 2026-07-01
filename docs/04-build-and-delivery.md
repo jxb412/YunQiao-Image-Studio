@@ -74,7 +74,7 @@ D:\btc\st\st3\release
 客户拿到类似下面的文件即可安装:
 
 ```text
-云桥Pro-0.1.11-x64.exe
+云桥Pro-0.1.12-x64.exe
 ```
 
 ## 6. 打包 Windows 绿色版
@@ -96,14 +96,14 @@ D:\btc\st\st3\scripts\build-win-portable.cmd
 正式交付:
 
 ```text
-YunQiao-Image-Studio-0.1.11-win-x64-portable.exe
+YunQiao-Image-Studio-0.1.12-win-x64-portable.exe
 docs/05-user-guide.md
 ```
 
 内测交付:
 
 ```text
-云桥Pro-0.1.11-x64.exe
+云桥Pro-0.1.12-x64.exe
 docs/05-user-guide.md
 ```
 
@@ -145,8 +145,8 @@ npm run dist:mac
 当前 GitHub Actions 会在 tag 发布时自动构建：
 
 ```text
-YunQiao-Image-Studio-0.1.11-mac-x64.dmg
-YunQiao-Image-Studio-0.1.11-mac-arm64.dmg
+YunQiao-Image-Studio-0.1.12-mac-x64.dmg
+YunQiao-Image-Studio-0.1.12-mac-arm64.dmg
 ```
 
 正式发布需要 Apple Developer 证书和 notarization，否则 macOS 会提示安全限制。未签名版本的打开方式见 `MAC_BUILD.md` 和 `docs/05-user-guide.md`。
@@ -159,48 +159,31 @@ YunQiao-Image-Studio-0.1.11-mac-arm64.dmg
 2. macOS runner 分别构建 Intel x64 DMG 和 Apple Silicon arm64 DMG。
 3. 所有 job 运行 `npm run lint`、`npm run typecheck`、`npm test`、`npm run build`。
 4. 构建产物上传到 GitHub Release。
-5. 生成带文件大小和 SHA256 的 `latest.json` 更新清单。
-6. 如果配置了 FTP Secret，自动把三个客户端和 `latest.json` 上传到网站下载镜像。
+5. 生成带文件大小和 SHA256 的发布清单。
+6. 如果配置了服务器 Secret，自动把三个客户端和发布清单上传到下载站目录。
 
-客户端自动更新默认读取：
+GitHub Actions 自动上传需要配置：
 
-```text
-https://down.haowucm.cn/yunqiao/latest.json
-```
+- Secret `UPDATE_SSH_HOST`
+- Secret `UPDATE_SSH_PORT`
+- Secret `UPDATE_SSH_USER`
+- Secret `UPDATE_SSH_PASSWORD`
+- Secret `UPDATE_SSH_REMOTE_ROOT`
 
-网站镜像 URL 结构：
-
-```text
-https://down.haowucm.cn/yunqiao/releases/v0.1.11/YunQiao-Image-Studio-0.1.11-win-x64-portable.exe
-https://down.haowucm.cn/yunqiao/releases/v0.1.11/YunQiao-Image-Studio-0.1.11-mac-x64.dmg
-https://down.haowucm.cn/yunqiao/releases/v0.1.11/YunQiao-Image-Studio-0.1.11-mac-arm64.dmg
-```
-
-GitHub Actions 自动 FTP 上传需要配置：
-
-- Secret `UPDATE_FTP_USER`
-- Secret `UPDATE_FTP_PASSWORD`
-- 可选 Secret `UPDATE_FTP_HOST`，默认 `8.136.208.135`
-- 可选 Secret `UPDATE_FTP_PORT`，默认 `5555`
-- 可选 Variable `UPDATE_PUBLIC_BASE_URL`，默认 `https://down.haowucm.cn/yunqiao`
-- 可选 Variable `UPDATE_FTP_REMOTE_ROOT`，默认 `yunqiao`
-
-不要把 FTP 账号密码写入源码、README 或 workflow。
-
-客户端会优先使用网站更新清单和网站镜像下载地址；如果网站节点不可用，或 GitHub 最新 Release 版本更新，则自动使用 GitHub 备用节点。
+不要把服务器账号密码写入源码、README 或 workflow。
 
 发布新版本建议流程：
 
 ```powershell
-npm version 0.1.11 --no-git-tag-version
+npm version 0.1.12 --no-git-tag-version
 npm run lint
 npm run typecheck
 npm test
 npm run build
 npm run dist:win-portable
 git add .
-git commit -m "release: v0.1.11"
-git tag -a v0.1.11 -m "YunQiao Image Studio v0.1.11"
+git commit -m "release: v0.1.12"
+git tag -a v0.1.12 -m "YunQiao Image Studio v0.1.12"
 git push origin main
-git push origin v0.1.11
+git push origin v0.1.12
 ```

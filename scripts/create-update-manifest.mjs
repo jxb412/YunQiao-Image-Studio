@@ -47,7 +47,7 @@ function sha256File(filePath) {
 const version = normalizeVersion(readArg("--version", process.env.RELEASE_VERSION || process.env.npm_package_version));
 const tag = readArg("--tag", version ? `v${version}` : process.env.GITHUB_REF_NAME || "");
 const assetDir = readArg("--asset-dir", "release-assets");
-const publicBaseUrl = readArg("--public-base-url", process.env.UPDATE_PUBLIC_BASE_URL || "https://down.haowucm.cn/yunqiao");
+const publicBaseUrl = readArg("--public-base-url", process.env.UPDATE_PUBLIC_BASE_URL || "https://down.haowucm.cn");
 const repo = readArg("--repo", process.env.GITHUB_REPOSITORY || "jxb412/YunQiao-Image-Studio");
 const output = readArg("--output", path.join(assetDir, "latest.json"));
 
