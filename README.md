@@ -182,6 +182,16 @@ scripts/         Windows/macOS 构建与图标脚本
 build/           应用图标资源
 ```
 
+## 文档
+
+- [用户使用说明](./docs/05-user-guide.md)
+- [产品 PRD](./docs/00-product-prd-final.md)
+- [UI 设计规范](./docs/01-ui-design-spec.md)
+- [技术与 API 规范](./docs/02-technical-api-spec.md)
+- [行业提示词模板库](./docs/03-industry-prompt-library.md)
+- [编译打包与交付说明](./docs/04-build-and-delivery.md)
+- [macOS 构建说明](./MAC_BUILD.md)
+
 ## 安全说明
 
 - 不要把真实 API Key、云存储 AccessKey、SecretKey 提交到 Git。

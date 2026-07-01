@@ -22,11 +22,22 @@ npm install
 bash scripts/build-mac.sh
 ```
 
-产物：
+产物示例：
 
 ```text
-release/云桥Pro-0.1.8-*.dmg
+release/云桥Pro-0.1.9-x64.dmg
+release/云桥Pro-0.1.9-arm64.dmg
 ```
+
+GitHub Release 自动构建会生成：
+
+```text
+YunQiao-Image-Studio-0.1.9-mac-x64.dmg
+YunQiao-Image-Studio-0.1.9-mac-arm64.dmg
+```
+
+- Intel 芯片 Mac 下载 `mac-x64.dmg`。
+- M1/M2/M3/M4 等 Apple Silicon Mac 下载 `mac-arm64.dmg`。
 
 ## 未签名应用的打开方式
 

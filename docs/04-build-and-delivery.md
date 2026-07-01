@@ -4,7 +4,7 @@
 
 不需要。
 
-客户只需要拿到开发方打包好的 Windows 安装包或绿色版程序，双击即可运行。Node.js、npm、Electron、源码、开发依赖都只存在于开发机和打包机上。
+客户只需要拿到开发方打包好的 Windows 便携版、macOS Intel DMG 或 macOS Apple Silicon DMG，双击即可运行。Node.js、npm、Electron、源码、开发依赖都只存在于开发机、打包机或 GitHub Actions 上。
 
 ## 2. 开发机需要安装什么
 
@@ -30,7 +30,7 @@ npm -v
 ## 3. 第一次安装依赖
 
 ```powershell
-cd D:\btc\st
+cd D:\btc\st\st3
 npm install
 ```
 
@@ -56,26 +56,25 @@ npm run dev
 ## 5. 打包 Windows 安装包
 
 ```powershell
-cd D:\btc\st
+cd D:\btc\st\st3
 npm run dist:win
 ```
 
 如果命令行里 npm 可用但脚本提示找不到 `node`，直接运行项目提供的一键脚本:
 
-```bat
-D:\btc\st\scripts\build-win.cmd
+D:\btc\st\st3\scripts\build-win.cmd
 ```
 
 输出目录:
 
 ```text
-D:\btc\st\release
+D:\btc\st\st3\release
 ```
 
 客户拿到类似下面的文件即可安装:
 
 ```text
-云桥Pro-0.1.0-x64.exe
+云桥Pro-0.1.9-x64.exe
 ```
 
 ## 6. 打包 Windows 绿色版
@@ -89,7 +88,7 @@ npm run dist:win-portable
 如果命令行 PATH 异常，使用一键绿色版脚本:
 
 ```bat
-D:\btc\st\scripts\build-win-portable.cmd
+D:\btc\st\st3\scripts\build-win-portable.cmd
 ```
 
 ## 7. 客户交付包建议
@@ -97,15 +96,15 @@ D:\btc\st\scripts\build-win-portable.cmd
 正式交付:
 
 ```text
-云桥Pro-Setup.exe
-使用说明.pdf
+YunQiao-Image-Studio-0.1.9-win-x64-portable.exe
+docs/05-user-guide.md
 ```
 
 内测交付:
 
 ```text
-云桥Pro-Portable.exe
-使用说明.txt
+云桥Pro-0.1.9-x64.exe
+docs/05-user-guide.md
 ```
 
 ## 8. API Key 交付策略
@@ -126,7 +125,7 @@ D:\btc\st\scripts\build-win-portable.cmd
 
 正式对外销售建议购买代码签名证书，并在 electron-builder 中配置签名。内测阶段可以先不签名，但需要提示客户这是内测包。
 
-## 10. macOS 后续交付
+## 10. macOS 交付
 
 macOS 客户同样不需要安装 Node。开发方在 macOS 打包:
 
@@ -134,4 +133,36 @@ macOS 客户同样不需要安装 Node。开发方在 macOS 打包:
 npm run dist:mac
 ```
 
-正式发布需要 Apple Developer 证书和 notarization，否则 macOS 会提示安全限制。
+当前 GitHub Actions 会在 tag 发布时自动构建：
+
+```text
+YunQiao-Image-Studio-0.1.9-mac-x64.dmg
+YunQiao-Image-Studio-0.1.9-mac-arm64.dmg
+```
+
+正式发布需要 Apple Developer 证书和 notarization，否则 macOS 会提示安全限制。未签名版本的打开方式见 `MAC_BUILD.md` 和 `docs/05-user-guide.md`。
+
+## 11. GitHub Release 自动发布
+
+推送 `v*` tag 会触发 `.github/workflows/release.yml`：
+
+1. Windows runner 构建 Windows x64 便携版。
+2. macOS runner 分别构建 Intel x64 DMG 和 Apple Silicon arm64 DMG。
+3. 所有 job 运行 `npm run lint`、`npm run typecheck`、`npm test`、`npm run build`。
+4. 构建产物上传到 GitHub Release。
+
+发布新版本建议流程：
+
+```powershell
+npm version 0.1.10 --no-git-tag-version
+npm run lint
+npm run typecheck
+npm test
+npm run build
+npm run dist:win-portable
+git add .
+git commit -m "release: v0.1.10"
+git tag -a v0.1.10 -m "YunQiao Image Studio v0.1.10"
+git push origin main
+git push origin v0.1.10
+```
