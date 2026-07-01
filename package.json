@@ -1,6 +1,6 @@
 {
   "name": "yunqiao-pro",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "private": true,
   "description": "云桥Pro AI生图桌面端",
   "main": "out/main/index.js",

@@ -1,4 +1,4 @@
-# 云桥Pro v0.1.9 使用说明
+# 云桥Pro v0.1.10 使用说明
 
 ## 1. 客户端下载
 
@@ -8,11 +8,11 @@ GitHub Release 页面：
 https://github.com/jxb412/YunQiao-Image-Studio/releases
 ```
 
-v0.1.9 提供三个客户端：
+v0.1.10 提供三个客户端：
 
-- Windows x64：`YunQiao-Image-Studio-0.1.9-win-x64-portable.exe`
-- macOS Intel x64：`YunQiao-Image-Studio-0.1.9-mac-x64.dmg`
-- macOS Apple Silicon arm64：`YunQiao-Image-Studio-0.1.9-mac-arm64.dmg`
+- Windows x64：`YunQiao-Image-Studio-0.1.10-win-x64-portable.exe`
+- macOS Intel x64：`YunQiao-Image-Studio-0.1.10-mac-x64.dmg`
+- macOS Apple Silicon arm64：`YunQiao-Image-Studio-0.1.10-mac-arm64.dmg`
 
 Windows 版本是便携版，下载后双击 exe 即可运行，不需要安装 Node.js、npm 或 Electron。
 
