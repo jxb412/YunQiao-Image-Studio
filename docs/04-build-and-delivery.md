@@ -74,7 +74,7 @@ D:\btc\st\st3\release
 客户拿到类似下面的文件即可安装:
 
 ```text
-云桥Pro-0.1.12-x64.exe
+云桥Pro-0.1.13-x64.exe
 ```
 
 ## 6. 打包 Windows 绿色版
@@ -96,14 +96,14 @@ D:\btc\st\st3\scripts\build-win-portable.cmd
 正式交付:
 
 ```text
-YunQiao-Image-Studio-0.1.12-win-x64-portable.exe
+YunQiao-Image-Studio-0.1.13-win-x64-portable.exe
 docs/05-user-guide.md
 ```
 
 内测交付:
 
 ```text
-云桥Pro-0.1.12-x64.exe
+云桥Pro-0.1.13-x64.exe
 docs/05-user-guide.md
 ```
 
@@ -145,8 +145,8 @@ npm run dist:mac
 当前 GitHub Actions 会在 tag 发布时自动构建：
 
 ```text
-YunQiao-Image-Studio-0.1.12-mac-x64.dmg
-YunQiao-Image-Studio-0.1.12-mac-arm64.dmg
+YunQiao-Image-Studio-0.1.13-mac-x64.dmg
+YunQiao-Image-Studio-0.1.13-mac-arm64.dmg
 ```
 
 正式发布需要 Apple Developer 证书和 notarization，否则 macOS 会提示安全限制。未签名版本的打开方式见 `MAC_BUILD.md` 和 `docs/05-user-guide.md`。
@@ -159,7 +159,7 @@ YunQiao-Image-Studio-0.1.12-mac-arm64.dmg
 2. macOS runner 分别构建 Intel x64 DMG 和 Apple Silicon arm64 DMG。
 3. 所有 job 运行 `npm run lint`、`npm run typecheck`、`npm test`、`npm run build`。
 4. 构建产物上传到 GitHub Release。
-5. 生成带文件大小和 SHA256 的发布清单。
+5. 生成带渠道、最低支持版本、文件大小和 SHA256 的发布清单。
 6. 如果配置了服务器 Secret，自动把三个客户端和发布清单上传到下载站目录。
 
 GitHub Actions 自动上传需要配置：
@@ -175,15 +175,15 @@ GitHub Actions 自动上传需要配置：
 发布新版本建议流程：
 
 ```powershell
-npm version 0.1.12 --no-git-tag-version
+npm version 0.1.13 --no-git-tag-version
 npm run lint
 npm run typecheck
 npm test
 npm run build
 npm run dist:win-portable
 git add .
-git commit -m "release: v0.1.12"
-git tag -a v0.1.12 -m "YunQiao Image Studio v0.1.12"
+git commit -m "release: v0.1.13"
+git tag -a v0.1.13 -m "YunQiao Image Studio v0.1.13"
 git push origin main
-git push origin v0.1.12
+git push origin v0.1.13
 ```

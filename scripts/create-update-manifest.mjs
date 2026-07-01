@@ -50,6 +50,8 @@ const assetDir = readArg("--asset-dir", "release-assets");
 const publicBaseUrl = readArg("--public-base-url", process.env.UPDATE_PUBLIC_BASE_URL || "https://down.haowucm.cn");
 const repo = readArg("--repo", process.env.GITHUB_REPOSITORY || "jxb412/YunQiao-Image-Studio");
 const output = readArg("--output", path.join(assetDir, "latest.json"));
+const channel = readArg("--channel", process.env.RELEASE_CHANNEL || "stable");
+const minimumVersion = normalizeVersion(readArg("--minimum-version", process.env.MINIMUM_SUPPORTED_VERSION || version));
 
 if (!version) {
   throw new Error("Missing --version");
@@ -81,7 +83,9 @@ if (missing.length > 0) {
 const manifest = {
   schema: 1,
   name: "YunQiao Image Studio",
+  channel,
   version,
+  minimumVersion,
   tag,
   publishedAt: new Date().toISOString(),
   releaseUrl: `https://github.com/${repo}/releases/tag/${tag}`,

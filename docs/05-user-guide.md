@@ -1,4 +1,4 @@
-# 云桥Pro v0.1.12 使用说明
+# 云桥Pro v0.1.13 使用说明
 
 ## 1. 客户端下载
 
@@ -8,11 +8,11 @@ GitHub Release 页面：
 https://github.com/jxb412/YunQiao-Image-Studio/releases
 ```
 
-v0.1.12 提供三个客户端：
+v0.1.13 提供三个客户端：
 
-- Windows x64：`YunQiao-Image-Studio-0.1.12-win-x64-portable.exe`
-- macOS Intel x64：`YunQiao-Image-Studio-0.1.12-mac-x64.dmg`
-- macOS Apple Silicon arm64：`YunQiao-Image-Studio-0.1.12-mac-arm64.dmg`
+- Windows x64：`YunQiao-Image-Studio-0.1.13-win-x64-portable.exe`
+- macOS Intel x64：`YunQiao-Image-Studio-0.1.13-mac-x64.dmg`
+- macOS Apple Silicon arm64：`YunQiao-Image-Studio-0.1.13-mac-arm64.dmg`
 
 Windows 版本是便携版，下载后双击 exe 即可运行，不需要安装 Node.js、npm 或 Electron。
 
@@ -207,5 +207,7 @@ xattr -cr /Applications/云桥Pro.app
 
 ## 11. 检查更新
 
-顶部工具栏提供检查更新入口。如果检测到新版本，会提示当前版本、最新版本、安装包名称、大小和 SHA256 摘要，并询问是否打开下载地址。
+顶部工具栏提供检查更新入口。如果检测到新版本，会打开详情面板，显示当前版本、最新版本、安装包名称、大小、检查时间和 SHA256 摘要。
+
+设置页可以管理版本提醒偏好。跳过某个版本后，该版本不会反复提醒；需要恢复时可在设置页清除跳过记录。
 

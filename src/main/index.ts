@@ -71,6 +71,8 @@ type AppSettings = {
   storageProfiles: PersistedStorageProfile[];
   requestTimeoutSeconds: number;
   apiBaseUrl: string;
+  autoCheckUpdates: boolean;
+  skippedUpdateVersion: string;
 };
 
 function defaultSettings(): AppSettings {
@@ -78,7 +80,9 @@ function defaultSettings(): AppSettings {
     saveDirectory: path.join(app.getPath("pictures"), "云桥Pro"),
     storageProfiles: [],
     requestTimeoutSeconds: 300,
-    apiBaseUrl: FIXED_API_BASE_URL
+    apiBaseUrl: FIXED_API_BASE_URL,
+    autoCheckUpdates: true,
+    skippedUpdateVersion: ""
   };
 }
 
@@ -119,7 +123,9 @@ async function readSettings(): Promise<AppSettings> {
     return {
       ...settings,
       requestTimeoutSeconds: clampRequestTimeoutSeconds(settings.requestTimeoutSeconds),
-      apiBaseUrl: normalizeApiBaseUrl(settings.apiBaseUrl)
+      apiBaseUrl: normalizeApiBaseUrl(settings.apiBaseUrl),
+      autoCheckUpdates: settings.autoCheckUpdates !== false,
+      skippedUpdateVersion: typeof settings.skippedUpdateVersion === "string" ? settings.skippedUpdateVersion : ""
     };
   } catch {
     return defaultSettings();
@@ -131,6 +137,8 @@ async function writeSettings(patch: Partial<AppSettings>) {
   const settings = { ...(await readSettings()), ...safePatch, apiBaseUrl: FIXED_API_BASE_URL };
   settings.requestTimeoutSeconds = clampRequestTimeoutSeconds(settings.requestTimeoutSeconds);
   settings.apiBaseUrl = FIXED_API_BASE_URL;
+  settings.autoCheckUpdates = settings.autoCheckUpdates !== false;
+  settings.skippedUpdateVersion = typeof settings.skippedUpdateVersion === "string" ? settings.skippedUpdateVersion : "";
   await mkdir(app.getPath("userData"), { recursive: true });
   await writeFile(settingsPath(), JSON.stringify(settings, null, 2), "utf-8");
   return settings;
@@ -848,7 +856,8 @@ ipcMain.handle("app:check-update", async () => {
     downloadSize: download?.size,
     downloadSha256: download?.sha256,
     publishedAt: latest.publishedAt,
-    notes: latest.notes
+    notes: latest.notes,
+    checkedAt: Date.now()
   };
 });
 

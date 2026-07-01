@@ -127,6 +127,7 @@ type Modal =
   | { kind: "asset"; asset: Asset }
   | { kind: "image-preview"; result: GenerationResult }
   | { kind: "mask-editor"; result: GenerationResult }
+  | { kind: "update"; result: UpdateCheckResult; automatic: boolean }
   | null;
 
 type ImageSize = ImageSizeValue;
@@ -254,6 +255,17 @@ type UpdateCheckResult = {
   downloadSha256?: string;
   publishedAt?: string;
   notes?: string;
+  checkedAt?: number;
+};
+
+type AppSettingsSnapshot = {
+  saveDirectory: string;
+  hasApiKey?: boolean;
+  storageProfiles?: StorageProfile[];
+  requestTimeoutSeconds?: number;
+  apiBaseUrl?: string;
+  autoCheckUpdates?: boolean;
+  skippedUpdateVersion?: string;
 };
 
 type YunqiaoBridge = {
@@ -279,9 +291,9 @@ type YunqiaoBridge = {
     data?: Array<{ b64_json?: string; url?: string; revised_prompt?: string }>;
   }>;
   testApi?: () => Promise<Omit<ApiDiagnostic, "testedAt">>;
-  getSettings?: () => Promise<{ saveDirectory: string; hasApiKey?: boolean; storageProfiles?: StorageProfile[]; requestTimeoutSeconds?: number; apiBaseUrl?: string }>;
+  getSettings?: () => Promise<AppSettingsSnapshot>;
   checkUpdate?: () => Promise<UpdateCheckResult>;
-  updateSettings?: (patch: Record<string, unknown>) => Promise<{ saveDirectory: string; storageProfiles?: StorageProfile[]; requestTimeoutSeconds?: number; apiBaseUrl?: string }>;
+  updateSettings?: (patch: Record<string, unknown>) => Promise<AppSettingsSnapshot>;
   chooseDirectory?: () => Promise<{ saveDirectory: string } | null>;
   chooseImages?: () => Promise<ImportedImage[]>;
   chooseImageFolder?: () => Promise<ImageFolderPick | null>;
@@ -1226,8 +1238,11 @@ function App() {
   const [apiDiagnostic, setApiDiagnostic] = useState<ApiDiagnostic | null>(null);
   const [saveDirectory, setSaveDirectory] = useState("");
   const [requestTimeoutSeconds, setRequestTimeoutSeconds] = useState(300);
+  const [autoCheckUpdates, setAutoCheckUpdates] = useState(true);
+  const [skippedUpdateVersion, setSkippedUpdateVersion] = useState("");
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [modal, setModal] = useState<Modal>(null);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [assetsLoaded, setAssetsLoaded] = useState(false);
   const [templatesLoaded, setTemplatesLoaded] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -1278,6 +1293,12 @@ function App() {
       if (settings?.storageProfiles) setStorages(settings.storageProfiles);
       if (settings?.requestTimeoutSeconds) setRequestTimeoutSeconds(clampRequestTimeoutSeconds(settings.requestTimeoutSeconds));
       if (settings?.apiBaseUrl) setApiBaseUrl(settings.apiBaseUrl);
+      if (typeof settings?.autoCheckUpdates === "boolean") setAutoCheckUpdates(settings.autoCheckUpdates);
+      if (typeof settings?.skippedUpdateVersion === "string") setSkippedUpdateVersion(settings.skippedUpdateVersion);
+    }).catch(() => {
+      notify("设置读取失败，已使用默认配置", "warning");
+    }).finally(() => {
+      setSettingsLoaded(true);
     });
     void appBridge?.getAssetLibrary?.().then((library) => {
       if (Array.isArray(library)) setAssets(library);
@@ -1294,13 +1315,13 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (autoUpdateCheckedRef.current || !bridge?.checkUpdate) return;
+    if (!settingsLoaded || !autoCheckUpdates || autoUpdateCheckedRef.current || !bridge?.checkUpdate) return;
     autoUpdateCheckedRef.current = true;
     const timer = window.setTimeout(() => {
       void checkForUpdates({ automatic: true });
     }, 1800);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [settingsLoaded, autoCheckUpdates]);
 
   useEffect(() => {
     if (!assetsLoaded) return;
@@ -1355,33 +1376,39 @@ function App() {
     }
     try {
       const result = await bridge.checkUpdate();
-      const sourceLabel = result.source === "website" ? "网站更新节点" : "GitHub 备用节点";
-      const fileText = result.downloadName ? `\n安装包：${result.downloadName}` : "";
-      const sizeText = result.downloadSize ? `\n大小：${formatBytes(result.downloadSize)}` : "";
-      const hashText = result.downloadSha256 ? `\nSHA256：${result.downloadSha256.slice(0, 16)}...` : "";
 
       if (result.updateAvailable) {
-        const message = `发现新版本 ${result.latestVersion}，当前版本 ${result.currentVersion}。\n来源：${sourceLabel}${fileText}${sizeText}${hashText}\n是否打开下载地址？`;
-        if (options.automatic) {
-          if (window.confirm(message)) {
-            await openUpdateTarget(result);
-          } else {
-            notify(`发现新版本 ${result.latestVersion}，可点击顶部下载按钮更新`, "info");
-          }
-        } else {
-          notify(`发现新版本 ${result.latestVersion}，正在打开下载地址`, "success");
-          await openUpdateTarget(result);
+        if (options.automatic && skippedUpdateVersion === result.latestVersion) {
+          return;
         }
+        setModal({ kind: "update", result, automatic: Boolean(options.automatic) });
         return;
       }
 
       if (!options.automatic) {
+        const sourceLabel = result.source === "website" ? "主更新服务" : "备用更新服务";
         notify(`当前已是最新版本 ${result.currentVersion}（${sourceLabel}）`, "info");
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "未知错误";
       if (!options.automatic) notify(`检查更新失败：${message}`, "warning");
     }
+  }
+
+  async function saveUpdatePreferences(patch: { autoCheckUpdates?: boolean; skippedUpdateVersion?: string }, message: string) {
+    if (!bridge?.updateSettings) {
+      notify("当前窗口未加载设置桥接，请在桌面客户端中保存更新偏好", "warning");
+      return;
+    }
+    const settings = await bridge.updateSettings(patch);
+    if (typeof settings.autoCheckUpdates === "boolean") setAutoCheckUpdates(settings.autoCheckUpdates);
+    if (typeof settings.skippedUpdateVersion === "string") setSkippedUpdateVersion(settings.skippedUpdateVersion);
+    notify(message, "info");
+  }
+
+  async function skipUpdateVersion(result: UpdateCheckResult) {
+    await saveUpdatePreferences({ skippedUpdateVersion: result.latestVersion }, `已跳过版本 ${result.latestVersion}`);
+    setModal(null);
   }
 
   function useTemplate(template: Template) {
@@ -1718,6 +1745,15 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
     const settings = await bridge.updateSettings({ requestTimeoutSeconds: nextTimeout });
     setRequestTimeoutSeconds(clampRequestTimeoutSeconds(settings.requestTimeoutSeconds ?? nextTimeout));
     notify(`请求超时时间已保存：${nextTimeout} 秒`);
+  }
+
+  async function changeAutoCheckUpdates(enabled: boolean) {
+    setAutoCheckUpdates(enabled);
+    await saveUpdatePreferences({ autoCheckUpdates: enabled }, enabled ? "已开启启动检查更新" : "已关闭启动检查更新");
+  }
+
+  async function clearSkippedUpdateVersion() {
+    await saveUpdatePreferences({ skippedUpdateVersion: "" }, "已恢复所有版本提醒");
   }
 
   async function persistStorages(nextStorages: StorageProfile[]) {
@@ -2169,6 +2205,21 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
     const batchSizeValidation = validateGptImage2Size(batchSize);
     if (!batchSizeValidation.ok) {
       notify(`批量输出尺寸不符合 gpt-image-2 要求：${batchSizeValidation.message}`, "warning");
+      return;
+    }
+    const invalidSizeTasks = pendingTasks
+      .map((task) => ({ task, validation: validateGptImage2Size(task.size ?? batchSizeValidation.value) }))
+      .filter(({ validation }) => !validation.ok);
+    if (invalidSizeTasks.length > 0) {
+      const invalidIds = new Set(invalidSizeTasks.map(({ task }) => task.id));
+      setBatchTasks((items) =>
+        items.map((item) => {
+          if (!invalidIds.has(item.id)) return item;
+          const validation = validateGptImage2Size(item.size ?? batchSizeValidation.value);
+          return { ...item, status: "失败", error: `尺寸不符合 gpt-image-2 要求：${validation.message}` };
+        })
+      );
+      notify(`发现 ${invalidSizeTasks.length} 条任务尺寸无效，已标记失败，请修正后重试`, "warning");
       return;
     }
 
@@ -2658,9 +2709,13 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
             storageDraft={storageDraft}
             saveDirectory={saveDirectory}
             requestTimeoutSeconds={requestTimeoutSeconds}
+            autoCheckUpdates={autoCheckUpdates}
+            skippedUpdateVersion={skippedUpdateVersion}
             onApiKeyChange={setApiKey}
             onTestApi={testApiConnection}
             onRequestTimeoutChange={setRequestTimeoutSeconds}
+            onAutoCheckUpdatesChange={changeAutoCheckUpdates}
+            onClearSkippedUpdateVersion={clearSkippedUpdateVersion}
             onSaveApiKey={saveApiKey}
             onSaveRequestTimeout={saveRequestTimeout}
             onChooseSaveDirectory={chooseSaveDirectory}
@@ -2734,6 +2789,23 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
       {modal?.kind === "history" && <HistoryModal assets={assets} results={results} onClose={() => setModal(null)} />}
       {modal?.kind === "asset" && <AssetModal asset={modal.asset} onClose={() => setModal(null)} onCopy={copyText} />}
       {modal?.kind === "image-preview" && <ImagePreviewModal result={modal.result} onClose={() => setModal(null)} onCopy={copyText} />}
+      {modal?.kind === "update" && (
+        <UpdateModal
+          result={modal.result}
+          automatic={modal.automatic}
+          onClose={() => setModal(null)}
+          onOpen={async () => {
+            await openUpdateTarget(modal.result);
+            setModal(null);
+          }}
+          onOpenRelease={async () => {
+            if (!modal.result.releaseUrl || !bridge?.openExternal) return;
+            await bridge.openExternal(modal.result.releaseUrl);
+          }}
+          onCopy={copyText}
+          onSkip={() => skipUpdateVersion(modal.result)}
+        />
+      )}
       {modal?.kind === "mask-editor" && (
         <MaskEditorModal
           result={modal.result}
@@ -3839,9 +3911,13 @@ function SettingsPage({
   storageDraft,
   saveDirectory,
   requestTimeoutSeconds,
+  autoCheckUpdates,
+  skippedUpdateVersion,
   onApiKeyChange,
   onTestApi,
   onRequestTimeoutChange,
+  onAutoCheckUpdatesChange,
+  onClearSkippedUpdateVersion,
   onSaveApiKey,
   onSaveRequestTimeout,
   onChooseSaveDirectory,
@@ -3861,9 +3937,13 @@ function SettingsPage({
   storageDraft: StorageDraft;
   saveDirectory: string;
   requestTimeoutSeconds: number;
+  autoCheckUpdates: boolean;
+  skippedUpdateVersion: string;
   onApiKeyChange: (value: string) => void;
   onTestApi: () => void;
   onRequestTimeoutChange: (value: number) => void;
+  onAutoCheckUpdatesChange: (enabled: boolean) => void;
+  onClearSkippedUpdateVersion: () => void;
   onSaveApiKey: () => void;
   onSaveRequestTimeout: () => void;
   onChooseSaveDirectory: () => void;
@@ -3930,6 +4010,23 @@ function SettingsPage({
           <TimerReset size={16} />
           保存超时设置
         </button>
+        <label className="checkRow">
+          <input
+            type="checkbox"
+            checked={autoCheckUpdates}
+            onChange={(event) => onAutoCheckUpdatesChange(event.target.checked)}
+          />
+          <span>
+            <strong>启动时检查新版本</strong>
+            <small>{autoCheckUpdates ? "开启后会在后台检查，并在发现新版本时提示。" : "关闭后只在点击顶部下载按钮时手动检查。"}</small>
+          </span>
+        </label>
+        {skippedUpdateVersion && (
+          <div className="inlineNotice">
+            <span>已跳过版本 {skippedUpdateVersion}</span>
+            <button className="secondaryButton" onClick={onClearSkippedUpdateVersion}>恢复提醒</button>
+          </div>
+        )}
         <div className="settingsDivider" />
         <label>
           默认保存路径
@@ -4282,6 +4379,64 @@ function ImagePreviewModal({ result, onClose, onCopy }: { result: GenerationResu
       <div className="modalActions">
         {result.dataUrl && <button className="secondaryButton" onClick={() => onCopy(result.dataUrl!, "当前图片数据")}>复制图片</button>}
         <button className="primaryButton" onClick={onClose}>完成</button>
+      </div>
+    </ModalShell>
+  );
+}
+
+function UpdateModal({
+  result,
+  automatic,
+  onClose,
+  onOpen,
+  onOpenRelease,
+  onCopy,
+  onSkip
+}: {
+  result: UpdateCheckResult;
+  automatic: boolean;
+  onClose: () => void;
+  onOpen: () => void;
+  onOpenRelease: () => void;
+  onCopy: (text: string, label: string) => void;
+  onSkip: () => void;
+}) {
+  const sourceLabel = result.source === "website" ? "主更新服务" : "备用更新服务";
+  const checksum = result.downloadSha256 || "未提供";
+  return (
+    <ModalShell title="发现新版本" onClose={onClose}>
+      <div className="updateDetail">
+        <div className="updateVersion">
+          <span>当前版本</span>
+          <strong>{result.currentVersion}</strong>
+          <span>最新版本</span>
+          <strong>{result.latestVersion}</strong>
+        </div>
+        <InfoList
+          items={[
+            `来源：${sourceLabel}`,
+            `安装包：${result.downloadName || "未匹配到当前系统安装包"}`,
+            `大小：${formatBytes(result.downloadSize)}`,
+            `检查时间：${formatTime(result.checkedAt)}`,
+            automatic ? "本次由启动检查发现" : "本次由手动检查发现"
+          ]}
+        />
+        <div className="checksumBox">
+          <span>SHA256</span>
+          <code>{checksum}</code>
+        </div>
+      </div>
+      <div className="modalActions">
+        {result.downloadSha256 && <button className="secondaryButton" onClick={() => onCopy(result.downloadSha256!, "SHA256")}>复制校验</button>}
+        <button className="secondaryButton" onClick={onSkip}>跳过此版本</button>
+        <button className="secondaryButton" onClick={onOpenRelease} disabled={!result.releaseUrl}>
+          <ExternalLink size={15} />
+          发布页
+        </button>
+        <button className="primaryButton" onClick={onOpen} disabled={!result.downloadUrl && !result.releaseUrl}>
+          <Download size={15} />
+          下载更新
+        </button>
       </div>
     </ModalShell>
   );

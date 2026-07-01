@@ -1135,6 +1135,55 @@ label {
   background: #2a364d;
 }
 
+.checkRow {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 10px 12px;
+  color: #d9e4f5;
+  background: #101a2a;
+  border: 1px solid #2b3a55;
+  border-radius: 8px;
+}
+
+.checkRow input {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  padding: 0;
+}
+
+.checkRow span,
+.inlineNotice span {
+  min-width: 0;
+}
+
+.checkRow strong,
+.checkRow small {
+  display: block;
+}
+
+.checkRow small {
+  margin-top: 3px;
+  color: #8da0bc;
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.inlineNotice {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding: 9px 10px;
+  color: #b9c7dc;
+  background: #121b2a;
+  border: 1px solid #2b3a55;
+  border-radius: 8px;
+}
+
 .storageEditorPanel {
   min-width: 0;
 }
@@ -1744,6 +1793,53 @@ label {
   background: #0f1724;
   border: 1px solid #2a3852;
   border-radius: 8px;
+}
+
+.updateDetail {
+  display: grid;
+  gap: 12px;
+}
+
+.updateVersion {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px 12px;
+  padding: 12px;
+  background: #101a2a;
+  border: 1px solid #2a3852;
+  border-radius: 8px;
+}
+
+.updateVersion span {
+  color: #8799b4;
+  font-size: 12px;
+}
+
+.updateVersion strong {
+  color: #f8fbff;
+  font-size: 20px;
+}
+
+.checksumBox {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px 12px;
+  background: #0f1724;
+  border: 1px solid #2a3852;
+  border-radius: 8px;
+}
+
+.checksumBox span {
+  color: #8799b4;
+  font-size: 12px;
+}
+
+.checksumBox code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #dce7f8;
+  font-size: 12px;
 }
 
 .imagePreviewStage {
