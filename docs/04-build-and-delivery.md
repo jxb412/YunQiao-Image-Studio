@@ -123,7 +123,16 @@ docs/05-user-guide.md
 
 未签名的 exe 可能触发 Windows SmartScreen 提示。
 
-正式对外销售建议购买代码签名证书，并在 electron-builder 中配置签名。内测阶段可以先不签名，但需要提示客户这是内测包。
+当前开源 Release 的 Windows 便携版未做商业代码签名，因此首次运行可能出现：
+
+```text
+Windows 已保护你的电脑
+发布者：发布者未知
+```
+
+客户确认文件来自可信 GitHub Release 后，可以点击 `更多信息`，再点击 `仍要运行`。这只是 Windows 对未签名新应用的安全提示，不代表程序损坏。
+
+正式对外销售建议购买代码签名证书，并在 electron-builder 中配置签名。签名后仍可能需要一段下载和安装信誉积累，SmartScreen 才会完全减少或消失。内测阶段可以先不签名，但需要明确提示客户这是内测包。
 
 ## 10. macOS 交付
 
