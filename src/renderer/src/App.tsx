@@ -240,6 +240,22 @@ type ImageFolderPick = {
   images: Array<{ path: string; name: string }>;
 };
 
+type UpdateCheckResult = {
+  currentVersion: string;
+  latestVersion: string;
+  updateAvailable?: boolean;
+  source?: "website" | "github";
+  platformKey?: string;
+  releaseUrl?: string;
+  downloadUrl?: string;
+  fallbackDownloadUrl?: string;
+  downloadName?: string;
+  downloadSize?: number;
+  downloadSha256?: string;
+  publishedAt?: string;
+  notes?: string;
+};
+
 type YunqiaoBridge = {
   setApiKey?: (key: string) => Promise<unknown>;
   generateImage?: (request: {
@@ -264,7 +280,7 @@ type YunqiaoBridge = {
   }>;
   testApi?: () => Promise<Omit<ApiDiagnostic, "testedAt">>;
   getSettings?: () => Promise<{ saveDirectory: string; hasApiKey?: boolean; storageProfiles?: StorageProfile[]; requestTimeoutSeconds?: number; apiBaseUrl?: string }>;
-  checkUpdate?: () => Promise<{ currentVersion: string; latestVersion: string; releaseUrl?: string; publishedAt?: string }>;
+  checkUpdate?: () => Promise<UpdateCheckResult>;
   updateSettings?: (patch: Record<string, unknown>) => Promise<{ saveDirectory: string; storageProfiles?: StorageProfile[]; requestTimeoutSeconds?: number; apiBaseUrl?: string }>;
   chooseDirectory?: () => Promise<{ saveDirectory: string } | null>;
   chooseImages?: () => Promise<ImportedImage[]>;
@@ -1246,6 +1262,7 @@ function App() {
   const [batchSize, setBatchSize] = useState<ImageSize>("1024x1024");
   const [batchRetryLimit, setBatchRetryLimit] = useState(1);
   const batchControlRef = useRef<BatchControlStatus>("idle");
+  const autoUpdateCheckedRef = useRef(false);
 
   const currentHint = useMemo(() => pageHints[active] ?? "管理云桥Pro工作流。", [active]);
   const queuedCount = useMemo(() => batchTasks.filter((task) => task.status === "已导入" || task.status === "生成中").length, [batchTasks]);
@@ -1274,6 +1291,15 @@ function App() {
     }).catch(() => {
       setTemplatesLoaded(true);
     });
+  }, []);
+
+  useEffect(() => {
+    if (autoUpdateCheckedRef.current || !bridge?.checkUpdate) return;
+    autoUpdateCheckedRef.current = true;
+    const timer = window.setTimeout(() => {
+      void checkForUpdates({ automatic: true });
+    }, 1800);
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -1315,20 +1341,46 @@ function App() {
     });
   }
 
-  async function checkForUpdates() {
+  async function openUpdateTarget(result: UpdateCheckResult) {
+    const targetUrl = result.downloadUrl || result.releaseUrl || result.fallbackDownloadUrl;
+    if (!targetUrl || !bridge?.openExternal) return false;
+    await bridge.openExternal(targetUrl);
+    return true;
+  }
+
+  async function checkForUpdates(options: { automatic?: boolean } = {}) {
     if (!bridge?.checkUpdate) {
-      notify("当前运行环境不支持检查更新，请到 GitHub Release 页面查看", "warning");
+      if (!options.automatic) notify("当前运行环境不支持检查更新，请到 GitHub Release 页面查看", "warning");
       return;
     }
     try {
       const result = await bridge.checkUpdate();
-      notify(`当前版本 ${result.currentVersion}，最新版本 ${result.latestVersion}`, result.currentVersion === result.latestVersion ? "info" : "success");
-      if (result.releaseUrl && bridge.openExternal) {
-        await bridge.openExternal(result.releaseUrl);
+      const sourceLabel = result.source === "website" ? "网站更新节点" : "GitHub 备用节点";
+      const fileText = result.downloadName ? `\n安装包：${result.downloadName}` : "";
+      const sizeText = result.downloadSize ? `\n大小：${formatBytes(result.downloadSize)}` : "";
+      const hashText = result.downloadSha256 ? `\nSHA256：${result.downloadSha256.slice(0, 16)}...` : "";
+
+      if (result.updateAvailable) {
+        const message = `发现新版本 ${result.latestVersion}，当前版本 ${result.currentVersion}。\n来源：${sourceLabel}${fileText}${sizeText}${hashText}\n是否打开下载地址？`;
+        if (options.automatic) {
+          if (window.confirm(message)) {
+            await openUpdateTarget(result);
+          } else {
+            notify(`发现新版本 ${result.latestVersion}，可点击顶部下载按钮更新`, "info");
+          }
+        } else {
+          notify(`发现新版本 ${result.latestVersion}，正在打开下载地址`, "success");
+          await openUpdateTarget(result);
+        }
+        return;
+      }
+
+      if (!options.automatic) {
+        notify(`当前已是最新版本 ${result.currentVersion}（${sourceLabel}）`, "info");
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "未知错误";
-      notify(`检查更新失败：${message}`, "warning");
+      if (!options.automatic) notify(`检查更新失败：${message}`, "warning");
     }
   }
 
@@ -2348,7 +2400,7 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
             <Gauge size={16} />
             {apiKeySaved ? "API Key 已保存" : "配置 API Key"}
           </button>
-          <button className="iconButton" aria-label="检查更新" onClick={checkForUpdates}>
+          <button className="iconButton" aria-label="检查更新" onClick={() => checkForUpdates()}>
             <Download size={18} />
           </button>
           <button className="iconButton" aria-label="云同步" onClick={() => notify(storages.length ? "云端同步队列为空" : "请先配置云端存储", storages.length ? "info" : "warning")}>

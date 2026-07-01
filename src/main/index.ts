@@ -19,6 +19,26 @@ let mainWindow: BrowserWindow | null = null;
 let encryptedApiKey: Buffer | null = null;
 const FIXED_API_BASE_URL = "https://api.0029.org";
 const SUPPORTED_IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp"]);
+const UPDATE_MANIFEST_URL = "https://down.haowucm.cn/yunqiao/latest.json";
+const GITHUB_LATEST_RELEASE_API = "https://api.github.com/repos/jxb412/YunQiao-Image-Studio/releases/latest";
+
+type UpdateDownload = {
+  filename?: string;
+  url?: string;
+  githubUrl?: string;
+  size?: number;
+  sha256?: string;
+};
+
+type UpdateInfo = {
+  version: string;
+  tag?: string;
+  releaseUrl?: string;
+  publishedAt?: string;
+  notes?: string;
+  downloads: Record<string, UpdateDownload>;
+  source: "website" | "github";
+};
 
 type PersistedStorageProfile = {
   id: string;
@@ -547,6 +567,159 @@ function windowlessTimeout(callback: () => void, timeout: number) {
   return setTimeout(callback, timeout);
 }
 
+function normalizeVersionText(version?: string) {
+  return String(version || "0.0.0").trim().replace(/^v/i, "");
+}
+
+function compareVersions(left: string, right: string) {
+  const leftParts = normalizeVersionText(left).split(/[.-]/).map((part) => Number.parseInt(part, 10) || 0);
+  const rightParts = normalizeVersionText(right).split(/[.-]/).map((part) => Number.parseInt(part, 10) || 0);
+  const length = Math.max(leftParts.length, rightParts.length, 3);
+  for (let index = 0; index < length; index += 1) {
+    const diff = (leftParts[index] || 0) - (rightParts[index] || 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+function currentUpdateTarget() {
+  if (process.platform === "win32") return "windows-x64";
+  if (process.platform === "darwin" && process.arch === "arm64") return "macos-arm64";
+  if (process.platform === "darwin") return "macos-x64";
+  return `${process.platform}-${process.arch}`;
+}
+
+function downloadKeyFromAssetName(name: string) {
+  if (/win-x64-portable\.exe$/i.test(name) || /-x64\.exe$/i.test(name)) return "windows-x64";
+  if (/mac-arm64\.dmg$/i.test(name) || /arm64\.dmg$/i.test(name)) return "macos-arm64";
+  if (/mac-x64\.dmg$/i.test(name) || /x64\.dmg$/i.test(name)) return "macos-x64";
+  return "";
+}
+
+function normalizeUpdateDownload(value: unknown): UpdateDownload {
+  const item = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
+  return {
+    filename: typeof item.filename === "string" ? item.filename : undefined,
+    url: typeof item.url === "string" ? item.url : undefined,
+    githubUrl: typeof item.githubUrl === "string" ? item.githubUrl : undefined,
+    size: typeof item.size === "number" ? item.size : undefined,
+    sha256: typeof item.sha256 === "string" ? item.sha256 : undefined
+  };
+}
+
+function normalizeManifest(value: unknown): UpdateInfo | null {
+  if (!value || typeof value !== "object") return null;
+  const data = value as Record<string, unknown>;
+  const version = normalizeVersionText(typeof data.version === "string" ? data.version : typeof data.tag === "string" ? data.tag : "");
+  const rawDownloads = data.downloads && typeof data.downloads === "object" ? data.downloads as Record<string, unknown> : {};
+  const downloads = Object.fromEntries(Object.entries(rawDownloads).map(([key, download]) => [key, normalizeUpdateDownload(download)]));
+  if (!version || Object.keys(downloads).length === 0) return null;
+  return {
+    version,
+    tag: typeof data.tag === "string" ? data.tag : `v${version}`,
+    releaseUrl: typeof data.releaseUrl === "string" ? data.releaseUrl : undefined,
+    publishedAt: typeof data.publishedAt === "string" ? data.publishedAt : undefined,
+    notes: typeof data.notes === "string" ? data.notes : undefined,
+    downloads,
+    source: "website"
+  };
+}
+
+async function fetchWebsiteUpdateInfo() {
+  const response = await fetchWithTimeoutForMain(UPDATE_MANIFEST_URL, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+      "Cache-Control": "no-cache",
+      "User-Agent": "YunQiao-Image-Studio"
+    }
+  }, 12000);
+  if (!response.ok) throw new Error(`网站更新清单 HTTP ${response.status}`);
+  const manifest = normalizeManifest(await response.json());
+  if (!manifest) throw new Error("网站更新清单格式无效");
+  return manifest;
+}
+
+async function fetchGithubUpdateInfo() {
+  const response = await fetchWithTimeoutForMain(GITHUB_LATEST_RELEASE_API, {
+    method: "GET",
+    headers: {
+      Accept: "application/vnd.github+json",
+      "User-Agent": "YunQiao-Image-Studio"
+    }
+  }, 12000);
+  if (!response.ok) throw new Error(`GitHub 更新检查 HTTP ${response.status}`);
+  const latest = await response.json() as {
+    tag_name?: string;
+    name?: string;
+    html_url?: string;
+    published_at?: string;
+    body?: string;
+    assets?: Array<{ name?: string; browser_download_url?: string; size?: number }>;
+  };
+  const downloads: Record<string, UpdateDownload> = {};
+  for (const asset of latest.assets ?? []) {
+    const name = asset.name || "";
+    const key = downloadKeyFromAssetName(name);
+    if (!key) continue;
+    downloads[key] = {
+      filename: name,
+      url: asset.browser_download_url,
+      githubUrl: asset.browser_download_url,
+      size: asset.size
+    };
+  }
+  return {
+    version: normalizeVersionText(latest.tag_name || latest.name || ""),
+    tag: latest.tag_name,
+    releaseUrl: latest.html_url,
+    publishedAt: latest.published_at,
+    notes: latest.body,
+    downloads,
+    source: "github" as const
+  };
+}
+
+async function resolveUpdateInfo() {
+  const [websiteResult, githubResult] = await Promise.allSettled([
+    fetchWebsiteUpdateInfo(),
+    fetchGithubUpdateInfo()
+  ]);
+
+  const website = websiteResult.status === "fulfilled" ? websiteResult.value : null;
+  const github = githubResult.status === "fulfilled" ? githubResult.value : null;
+
+  if (website && github) {
+    if (compareVersions(github.version, website.version) > 0) return github;
+    if (compareVersions(github.version, website.version) === 0) {
+      return {
+        ...website,
+        releaseUrl: website.releaseUrl || github.releaseUrl,
+        publishedAt: website.publishedAt || github.publishedAt,
+        notes: website.notes || github.notes,
+        downloads: Object.fromEntries(Object.entries(website.downloads).map(([key, download]) => {
+          const fallback = github.downloads[key];
+          return [key, {
+            ...download,
+            githubUrl: download.githubUrl || fallback?.githubUrl || fallback?.url
+          }];
+        }))
+      };
+    }
+    return website;
+  }
+  if (website) return website;
+  if (github) return github;
+
+  const websiteError = websiteResult.status === "rejected" && websiteResult.reason instanceof Error
+    ? websiteResult.reason.message
+    : "网站更新清单读取失败";
+  const githubError = githubResult.status === "rejected" && githubResult.reason instanceof Error
+    ? githubResult.reason.message
+    : "GitHub 更新检查失败";
+  throw new Error(`${websiteError}；备用 GitHub 也不可用：${githubError}`);
+}
+
 async function testHttpEndpoint(endpoint: string) {
   const url = normalizeEndpoint(endpoint);
   if (!url) return { ok: false, message: "Endpoint 为空" };
@@ -658,27 +831,24 @@ ipcMain.handle("app:get-settings", async () => ({
 }));
 
 ipcMain.handle("app:check-update", async () => {
-  const response = await fetchWithTimeoutForMain("https://api.github.com/repos/jxb412/YunQiao-Image-Studio/releases/latest", {
-    method: "GET",
-    headers: {
-      Accept: "application/vnd.github+json",
-      "User-Agent": "YunQiao-Image-Studio"
-    }
-  }, 12000);
-  if (!response.ok) {
-    throw new Error(`检查更新失败：HTTP ${response.status}`);
-  }
-  const latest = await response.json() as {
-    tag_name?: string;
-    name?: string;
-    html_url?: string;
-    published_at?: string;
-  };
+  const latest = await resolveUpdateInfo();
+  const currentVersion = app.getVersion();
+  const target = currentUpdateTarget();
+  const download = latest.downloads[target];
   return {
-    currentVersion: app.getVersion(),
-    latestVersion: latest.tag_name?.replace(/^v/i, "") || latest.name || "未知版本",
-    releaseUrl: latest.html_url,
-    publishedAt: latest.published_at
+    currentVersion,
+    latestVersion: latest.version || "未知版本",
+    updateAvailable: latest.version ? compareVersions(latest.version, currentVersion) > 0 : false,
+    source: latest.source,
+    platformKey: target,
+    releaseUrl: latest.releaseUrl,
+    downloadUrl: download?.url || latest.releaseUrl,
+    fallbackDownloadUrl: download?.githubUrl || latest.releaseUrl,
+    downloadName: download?.filename,
+    downloadSize: download?.size,
+    downloadSha256: download?.sha256,
+    publishedAt: latest.publishedAt,
+    notes: latest.notes
   };
 });
 

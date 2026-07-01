@@ -64,16 +64,29 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
       - name: Rename assets
         run: |
           mkdir -p release-assets
-          find artifacts -type f -maxdepth 3 -print
+          find artifacts -maxdepth 3 -type f -print
           cp artifacts/windows-portable/*.exe release-assets/YunQiao-Image-Studio-${GITHUB_REF_NAME#v}-win-x64-portable.exe
           cp artifacts/macos-x64-dmg/*.dmg release-assets/YunQiao-Image-Studio-${GITHUB_REF_NAME#v}-mac-x64.dmg
           cp artifacts/macos-arm64-dmg/*.dmg release-assets/YunQiao-Image-Studio-${GITHUB_REF_NAME#v}-mac-arm64.dmg
+      - name: Generate update manifest
+        env:
+          UPDATE_PUBLIC_BASE_URL: ${{ vars.UPDATE_PUBLIC_BASE_URL }}
+        run: |
+          PUBLIC_BASE_URL="${UPDATE_PUBLIC_BASE_URL:-https://down.haowucm.cn/yunqiao}"
+          node scripts/create-update-manifest.mjs \
+            --version "${GITHUB_REF_NAME#v}" \
+            --tag "${GITHUB_REF_NAME}" \
+            --asset-dir release-assets \
+            --public-base-url "${PUBLIC_BASE_URL}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --output release-assets/latest.json
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -82,3 +95,38 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: true
+      - name: Upload website update mirror
+        env:
+          FTP_HOST: ${{ secrets.UPDATE_FTP_HOST }}
+          FTP_PORT: ${{ secrets.UPDATE_FTP_PORT }}
+          FTP_USER: ${{ secrets.UPDATE_FTP_USER }}
+          FTP_PASSWORD: ${{ secrets.UPDATE_FTP_PASSWORD }}
+          FTP_REMOTE_ROOT: ${{ vars.UPDATE_FTP_REMOTE_ROOT }}
+        run: |
+          set -euo pipefail
+          FTP_HOST="${FTP_HOST:-8.136.208.135}"
+          FTP_PORT="${FTP_PORT:-5555}"
+          FTP_REMOTE_ROOT="${FTP_REMOTE_ROOT:-yunqiao}"
+          if [ -z "${FTP_USER:-}" ] || [ -z "${FTP_PASSWORD:-}" ]; then
+            echo "FTP secrets are not configured; skip website mirror upload."
+            exit 0
+          fi
+
+          upload_file() {
+            local source_file="$1"
+            local remote_path="$2"
+            curl --fail --silent --show-error --ftp-create-dirs \
+              --user "${FTP_USER}:${FTP_PASSWORD}" \
+              -T "${source_file}" \
+              "ftp://${FTP_HOST}:${FTP_PORT}/${remote_path}"
+          }
+
+          for file in release-assets/*; do
+            [ -f "${file}" ] || continue
+            filename="$(basename "${file}")"
+            [ "${filename}" = "latest.json" ] && continue
+            upload_file "${file}" "${FTP_REMOTE_ROOT}/releases/${GITHUB_REF_NAME}/${filename}"
+          done
+
+          upload_file release-assets/latest.json "${FTP_REMOTE_ROOT}/latest.json"
+          upload_file release-assets/latest.json "${FTP_REMOTE_ROOT}/releases/${GITHUB_REF_NAME}/latest.json"

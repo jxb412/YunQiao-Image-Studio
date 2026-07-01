@@ -1,6 +1,6 @@
 {
   "name": "yunqiao-pro",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "private": true,
   "description": "云桥Pro AI生图桌面端",
   "main": "out/main/index.js",
@@ -14,7 +14,8 @@
     "dist:win": "npm run build && electron-builder --win nsis",
     "dist:win-portable": "npm run build && electron-builder --win portable",
     "dist:mac": "npm run build && electron-builder --mac dmg",
-    "dist:mac-dir": "npm run build && electron-builder --mac dir"
+    "dist:mac-dir": "npm run build && electron-builder --mac dir",
+    "release:manifest": "node scripts/create-update-manifest.mjs"
   },
   "dependencies": {
     "ali-oss": "^6.23.0",
