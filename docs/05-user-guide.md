@@ -1,4 +1,4 @@
-# 云桥Pro v0.1.13 使用说明
+# 云桥Pro v0.1.14 使用说明
 
 ## 1. 客户端下载
 
@@ -8,11 +8,11 @@ GitHub Release 页面：
 https://github.com/jxb412/YunQiao-Image-Studio/releases
 ```
 
-v0.1.13 提供三个客户端：
+v0.1.14 提供三个客户端：
 
-- Windows x64：`YunQiao-Image-Studio-0.1.13-win-x64-portable.exe`
-- macOS Intel x64：`YunQiao-Image-Studio-0.1.13-mac-x64.dmg`
-- macOS Apple Silicon arm64：`YunQiao-Image-Studio-0.1.13-mac-arm64.dmg`
+- Windows x64：`YunQiao-Image-Studio-0.1.14-win-x64-portable.exe`
+- macOS Intel x64：`YunQiao-Image-Studio-0.1.14-mac-x64.dmg`
+- macOS Apple Silicon arm64：`YunQiao-Image-Studio-0.1.14-mac-arm64.dmg`
 
 Windows 版本是便携版，下载后双击 exe 即可运行，不需要安装 Node.js、npm 或 Electron。
 
@@ -47,9 +47,25 @@ https://api.0029.org
 
 - 保存 API Key 到本机安全存储。
 - 请求超时时间设置，默认 300 秒，最高 600 秒。
+- 程序代理设置，支持 HTTP/HTTPS 代理地址，例如 `http://127.0.0.1:7890`。
+- 代理网络测试，显示 HTTP 状态、耗时、直连/代理模式和返回摘要。
 - 测试 API 连通性，显示 HTTP 状态、耗时、接口返回摘要和错误信息。
 
 API Base URL 不提供自定义修改入口。
+
+### 网络代理设置
+
+如果所在网络无法直接访问国外服务，可在 `API与云端存储设置` 页面启用程序代理。
+
+常见填写方式：
+
+```text
+http://127.0.0.1:7890
+https://127.0.0.1:7890
+http://user:pass@proxy.example.com:8080
+```
+
+保存后，文生图、图生图、AI 修图、API 测试、检查更新和远程图片下载会使用该代理。FTP/SFTP 上传仍按对应服务器配置连接。
 
 ## 3. 文生图
 

@@ -232,7 +232,14 @@ type ApiDiagnostic = {
   bodyPreview?: string;
   error?: string;
   testedAt: number;
+  proxyMode?: ProxyMode;
+  proxyUrl?: string;
+  networkMode?: string;
 };
+
+type ProxyMode = "off" | "custom";
+
+type ProxyDiagnostic = ApiDiagnostic;
 
 type BatchControlStatus = "idle" | "running" | "paused" | "stopping";
 
@@ -266,6 +273,8 @@ type AppSettingsSnapshot = {
   apiBaseUrl?: string;
   autoCheckUpdates?: boolean;
   skippedUpdateVersion?: string;
+  proxyMode?: ProxyMode;
+  proxyUrl?: string;
 };
 
 type YunqiaoBridge = {
@@ -291,6 +300,7 @@ type YunqiaoBridge = {
     data?: Array<{ b64_json?: string; url?: string; revised_prompt?: string }>;
   }>;
   testApi?: () => Promise<Omit<ApiDiagnostic, "testedAt">>;
+  testProxy?: (patch: { proxyMode?: ProxyMode; proxyUrl?: string }) => Promise<Omit<ProxyDiagnostic, "testedAt">>;
   getSettings?: () => Promise<AppSettingsSnapshot>;
   checkUpdate?: () => Promise<UpdateCheckResult>;
   updateSettings?: (patch: Record<string, unknown>) => Promise<AppSettingsSnapshot>;
@@ -1152,6 +1162,10 @@ function clampRequestTimeoutSeconds(value: unknown) {
   return Math.min(600, Math.max(1, Math.round(numeric)));
 }
 
+function normalizeProxyMode(value: unknown): ProxyMode {
+  return value === "custom" ? "custom" : "off";
+}
+
 function readImageDimensions(src: string) {
   return new Promise<{ width: number; height: number }>((resolve) => {
     const image = new Image();
@@ -1236,6 +1250,9 @@ function App() {
   const [apiKeySaved, setApiKeySaved] = useState(false);
   const [apiBaseUrl, setApiBaseUrl] = useState("https://api.0029.org");
   const [apiDiagnostic, setApiDiagnostic] = useState<ApiDiagnostic | null>(null);
+  const [proxyMode, setProxyMode] = useState<ProxyMode>("off");
+  const [proxyUrl, setProxyUrl] = useState("");
+  const [proxyDiagnostic, setProxyDiagnostic] = useState<ProxyDiagnostic | null>(null);
   const [saveDirectory, setSaveDirectory] = useState("");
   const [requestTimeoutSeconds, setRequestTimeoutSeconds] = useState(300);
   const [autoCheckUpdates, setAutoCheckUpdates] = useState(true);
@@ -1295,6 +1312,8 @@ function App() {
       if (settings?.apiBaseUrl) setApiBaseUrl(settings.apiBaseUrl);
       if (typeof settings?.autoCheckUpdates === "boolean") setAutoCheckUpdates(settings.autoCheckUpdates);
       if (typeof settings?.skippedUpdateVersion === "string") setSkippedUpdateVersion(settings.skippedUpdateVersion);
+      if (settings?.proxyMode === "custom" || settings?.proxyMode === "off") setProxyMode(settings.proxyMode);
+      if (typeof settings?.proxyUrl === "string") setProxyUrl(settings.proxyUrl);
     }).catch(() => {
       notify("设置读取失败，已使用默认配置", "warning");
     }).finally(() => {
@@ -1745,6 +1764,56 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
     const settings = await bridge.updateSettings({ requestTimeoutSeconds: nextTimeout });
     setRequestTimeoutSeconds(clampRequestTimeoutSeconds(settings.requestTimeoutSeconds ?? nextTimeout));
     notify(`请求超时时间已保存：${nextTimeout} 秒`);
+  }
+
+  async function saveProxySettings() {
+    const nextMode = normalizeProxyMode(proxyMode);
+    const nextUrl = proxyUrl.trim();
+    if (nextMode === "custom" && !nextUrl) {
+      notify("启用代理后请填写代理地址，例如 http://127.0.0.1:7890", "warning");
+      return;
+    }
+    if (!bridge?.updateSettings) {
+      notify("当前窗口未加载设置桥接，请在桌面客户端中保存代理设置", "warning");
+      return;
+    }
+    try {
+      const settings = await bridge.updateSettings({ proxyMode: nextMode, proxyUrl: nextUrl });
+      setProxyMode(normalizeProxyMode(settings.proxyMode));
+      setProxyUrl(settings.proxyUrl ?? "");
+      notify(nextMode === "custom" ? "代理设置已保存，后续 API 和更新检查会走代理" : "代理已关闭，后续请求使用直连");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "代理设置保存失败";
+      notify(message, "warning");
+    }
+  }
+
+  async function testProxyConnection() {
+    if (proxyMode === "custom" && !proxyUrl.trim()) {
+      notify("请先填写代理地址再测试", "warning");
+      return;
+    }
+    if (!bridge?.testProxy) {
+      notify("当前窗口未加载代理测试桥接，请在桌面客户端中测试", "warning");
+      return;
+    }
+    const testedAt = Date.now();
+    try {
+      const result = await bridge.testProxy({ proxyMode, proxyUrl: proxyUrl.trim() });
+      const diagnostic: ProxyDiagnostic = { ...result, testedAt };
+      setProxyDiagnostic(diagnostic);
+      notify(result.ok ? `网络测试通过：${result.networkMode ?? "直连"}` : `网络返回异常：HTTP ${result.status}`, result.ok ? "success" : "warning");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "未知错误";
+      setProxyDiagnostic({
+        ok: false,
+        error: message,
+        endpoint: `${apiBaseUrl}/v1/models`,
+        testedAt,
+        networkMode: proxyMode === "custom" ? `代理 ${proxyUrl.trim()}` : "直连"
+      });
+      notify(`网络测试失败：${message}`, "warning");
+    }
   }
 
   async function changeAutoCheckUpdates(enabled: boolean) {
@@ -2705,6 +2774,9 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
             apiKey={apiKey}
             apiBaseUrl={apiBaseUrl}
             apiDiagnostic={apiDiagnostic}
+            proxyMode={proxyMode}
+            proxyUrl={proxyUrl}
+            proxyDiagnostic={proxyDiagnostic}
             storages={storages}
             storageDraft={storageDraft}
             saveDirectory={saveDirectory}
@@ -2713,6 +2785,10 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
             skippedUpdateVersion={skippedUpdateVersion}
             onApiKeyChange={setApiKey}
             onTestApi={testApiConnection}
+            onProxyModeChange={setProxyMode}
+            onProxyUrlChange={setProxyUrl}
+            onSaveProxySettings={saveProxySettings}
+            onTestProxy={testProxyConnection}
             onRequestTimeoutChange={setRequestTimeoutSeconds}
             onAutoCheckUpdatesChange={changeAutoCheckUpdates}
             onClearSkippedUpdateVersion={clearSkippedUpdateVersion}
@@ -3907,6 +3983,9 @@ function SettingsPage({
   apiKey,
   apiBaseUrl,
   apiDiagnostic,
+  proxyMode,
+  proxyUrl,
+  proxyDiagnostic,
   storages,
   storageDraft,
   saveDirectory,
@@ -3915,6 +3994,10 @@ function SettingsPage({
   skippedUpdateVersion,
   onApiKeyChange,
   onTestApi,
+  onProxyModeChange,
+  onProxyUrlChange,
+  onSaveProxySettings,
+  onTestProxy,
   onRequestTimeoutChange,
   onAutoCheckUpdatesChange,
   onClearSkippedUpdateVersion,
@@ -3933,6 +4016,9 @@ function SettingsPage({
   apiKey: string;
   apiBaseUrl: string;
   apiDiagnostic: ApiDiagnostic | null;
+  proxyMode: ProxyMode;
+  proxyUrl: string;
+  proxyDiagnostic: ProxyDiagnostic | null;
   storages: StorageProfile[];
   storageDraft: StorageDraft;
   saveDirectory: string;
@@ -3941,6 +4027,10 @@ function SettingsPage({
   skippedUpdateVersion: string;
   onApiKeyChange: (value: string) => void;
   onTestApi: () => void;
+  onProxyModeChange: (value: ProxyMode) => void;
+  onProxyUrlChange: (value: string) => void;
+  onSaveProxySettings: () => void;
+  onTestProxy: () => void;
   onRequestTimeoutChange: (value: number) => void;
   onAutoCheckUpdatesChange: (enabled: boolean) => void;
   onClearSkippedUpdateVersion: () => void;
@@ -3992,10 +4082,51 @@ function SettingsPage({
         {apiDiagnostic && (
           <div className={`diagnosticBox ${apiDiagnostic.ok ? "success" : "warning"}`}>
             <strong>{apiDiagnostic.ok ? "API 连接正常" : "API 连接异常"}</strong>
-            <span>{apiDiagnostic.endpoint ?? apiBaseUrl} · {apiDiagnostic.status ? `HTTP ${apiDiagnostic.status}` : "无状态码"} · {formatDuration(apiDiagnostic.durationMs)} · {formatTime(apiDiagnostic.testedAt)}</span>
+            <span>{apiDiagnostic.endpoint ?? apiBaseUrl} · {apiDiagnostic.status ? `HTTP ${apiDiagnostic.status}` : "无状态码"} · {formatDuration(apiDiagnostic.durationMs)} · {formatTime(apiDiagnostic.testedAt)} · {apiDiagnostic.networkMode ?? "直连"}</span>
             <code>{apiDiagnostic.error ?? apiDiagnostic.bodyPreview ?? apiDiagnostic.statusText ?? "无返回详情"}</code>
           </div>
         )}
+        <div className="settingsDivider" />
+        <div className="proxySettingsBlock">
+          <label className="checkRow">
+            <input
+              type="checkbox"
+              checked={proxyMode === "custom"}
+              onChange={(event) => onProxyModeChange(event.target.checked ? "custom" : "off")}
+            />
+            <span>
+              <strong>启用程序代理</strong>
+              <small>{proxyMode === "custom" ? "生图、修图、API 测试和更新检查会通过代理访问网络。" : "关闭时所有请求使用直连。"}</small>
+            </span>
+          </label>
+          <label>
+            HTTP/HTTPS 代理地址
+            <input
+              value={proxyUrl}
+              onChange={(event) => onProxyUrlChange(event.target.value)}
+              placeholder="http://127.0.0.1:7890"
+              disabled={proxyMode !== "custom"}
+            />
+          </label>
+          <small className="fieldHint">支持 http://host:port、https://host:port，也可填写 http://user:pass@host:port。</small>
+          <div className="buttonRow">
+            <button className="secondaryButton" onClick={onSaveProxySettings}>
+              <CloudCog size={16} />
+              保存代理
+            </button>
+            <button className="secondaryButton" onClick={onTestProxy}>
+              <TestTube2 size={16} />
+              测试网络
+            </button>
+          </div>
+          {proxyDiagnostic && (
+            <div className={`diagnosticBox ${proxyDiagnostic.ok ? "success" : "warning"}`}>
+              <strong>{proxyDiagnostic.ok ? "网络可达" : "网络异常"}</strong>
+              <span>{proxyDiagnostic.endpoint ?? apiBaseUrl} · {proxyDiagnostic.status ? `HTTP ${proxyDiagnostic.status}` : "无状态码"} · {formatDuration(proxyDiagnostic.durationMs)} · {formatTime(proxyDiagnostic.testedAt)} · {proxyDiagnostic.networkMode ?? "直连"}</span>
+              <code>{proxyDiagnostic.error ?? proxyDiagnostic.bodyPreview ?? proxyDiagnostic.statusText ?? "无返回详情"}</code>
+            </div>
+          )}
+        </div>
         <label>
           请求超时时间（秒）
           <input

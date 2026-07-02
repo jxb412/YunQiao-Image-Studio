@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld("yunqiao", {
   generateImage: (request: ImageGenerationRequest) => ipcRenderer.invoke("image:generate", request),
   editImage: (request: ImageEditRequest) => ipcRenderer.invoke("image:edit", request),
   testApi: () => ipcRenderer.invoke("api:test"),
+  testProxy: (patch: { proxyMode?: string; proxyUrl?: string }) => ipcRenderer.invoke("network:test-proxy", patch),
   getSettings: () => ipcRenderer.invoke("app:get-settings"),
   checkUpdate: () => ipcRenderer.invoke("app:check-update"),
   updateSettings: (patch: Record<string, unknown>) => ipcRenderer.invoke("settings:update", patch),

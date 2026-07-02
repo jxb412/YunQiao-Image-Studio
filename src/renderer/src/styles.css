@@ -1135,6 +1135,19 @@ label {
   background: #2a364d;
 }
 
+.proxySettingsBlock {
+  display: grid;
+  gap: 10px;
+}
+
+.fieldHint {
+  display: block;
+  margin-top: -4px;
+  color: #8396b4;
+  font-size: 12px;
+  line-height: 17px;
+}
+
 .checkRow {
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr);

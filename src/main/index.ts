@@ -11,8 +11,10 @@ import Minio from "minio";
 import qiniu from "qiniu";
 import ObsClient from "esdk-obs-nodejs";
 import SftpClient from "ssh2-sftp-client";
+import { ProxyAgent, type Dispatcher } from "undici";
 
 import { createImageEdit, createImageGeneration } from "../shared/imageApi";
+import type { ImageApiFetch } from "../shared/imageApi";
 import type { ImageEditRequest, ImageGenerationRequest } from "../shared/imageApiTypes";
 
 let mainWindow: BrowserWindow | null = null;
@@ -66,6 +68,8 @@ type StorageSecret = {
   password?: string;
 };
 
+type ProxyMode = "off" | "custom";
+
 type AppSettings = {
   saveDirectory: string;
   storageProfiles: PersistedStorageProfile[];
@@ -73,6 +77,8 @@ type AppSettings = {
   apiBaseUrl: string;
   autoCheckUpdates: boolean;
   skippedUpdateVersion: string;
+  proxyMode: ProxyMode;
+  proxyUrl: string;
 };
 
 function defaultSettings(): AppSettings {
@@ -82,7 +88,9 @@ function defaultSettings(): AppSettings {
     requestTimeoutSeconds: 300,
     apiBaseUrl: FIXED_API_BASE_URL,
     autoCheckUpdates: true,
-    skippedUpdateVersion: ""
+    skippedUpdateVersion: "",
+    proxyMode: "off",
+    proxyUrl: ""
   };
 }
 
@@ -94,6 +102,49 @@ function clampRequestTimeoutSeconds(value: unknown) {
 
 function normalizeApiBaseUrl(_value?: unknown) {
   return FIXED_API_BASE_URL;
+}
+
+function normalizeProxyMode(value: unknown): ProxyMode {
+  return value === "custom" ? "custom" : "off";
+}
+
+function normalizeProxyUrl(value: unknown) {
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (!raw) return "";
+  const withProtocol = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `http://${raw}`;
+  const parsed = new URL(withProtocol);
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("代理地址仅支持 http 或 https 协议");
+  }
+  if (!parsed.hostname) {
+    throw new Error("代理地址缺少主机");
+  }
+  if ((parsed.pathname && parsed.pathname !== "/") || parsed.search || parsed.hash) {
+    throw new Error("代理地址只需要填写协议、主机、端口和可选账号密码");
+  }
+  return parsed.toString().replace(/\/$/, "");
+}
+
+function normalizeProxySettings(settings: Partial<AppSettings>, strict: boolean) {
+  const proxyMode = normalizeProxyMode(settings.proxyMode);
+  const rawProxyUrl = typeof settings.proxyUrl === "string" ? settings.proxyUrl.trim() : "";
+  if (proxyMode === "off") {
+    try {
+      return { proxyMode, proxyUrl: normalizeProxyUrl(rawProxyUrl) };
+    } catch {
+      return { proxyMode, proxyUrl: "" };
+    }
+  }
+  try {
+    const proxyUrl = normalizeProxyUrl(rawProxyUrl);
+    if (!proxyUrl) {
+      throw new Error("启用代理后请填写代理地址");
+    }
+    return { proxyMode, proxyUrl };
+  } catch (error) {
+    if (strict) throw error;
+    return { proxyMode: "off" as ProxyMode, proxyUrl: "" };
+  }
 }
 
 function settingsPath() {
@@ -120,12 +171,15 @@ async function readSettings(): Promise<AppSettings> {
   try {
     const text = await readFile(settingsPath(), "utf-8");
     const settings = { ...defaultSettings(), ...JSON.parse(text) };
+    const proxySettings = normalizeProxySettings(settings, false);
     return {
       ...settings,
       requestTimeoutSeconds: clampRequestTimeoutSeconds(settings.requestTimeoutSeconds),
       apiBaseUrl: normalizeApiBaseUrl(settings.apiBaseUrl),
       autoCheckUpdates: settings.autoCheckUpdates !== false,
-      skippedUpdateVersion: typeof settings.skippedUpdateVersion === "string" ? settings.skippedUpdateVersion : ""
+      skippedUpdateVersion: typeof settings.skippedUpdateVersion === "string" ? settings.skippedUpdateVersion : "",
+      proxyMode: proxySettings.proxyMode,
+      proxyUrl: proxySettings.proxyUrl
     };
   } catch {
     return defaultSettings();
@@ -139,6 +193,9 @@ async function writeSettings(patch: Partial<AppSettings>) {
   settings.apiBaseUrl = FIXED_API_BASE_URL;
   settings.autoCheckUpdates = settings.autoCheckUpdates !== false;
   settings.skippedUpdateVersion = typeof settings.skippedUpdateVersion === "string" ? settings.skippedUpdateVersion : "";
+  const proxySettings = normalizeProxySettings(settings, true);
+  settings.proxyMode = proxySettings.proxyMode;
+  settings.proxyUrl = proxySettings.proxyUrl;
   await mkdir(app.getPath("userData"), { recursive: true });
   await writeFile(settingsPath(), JSON.stringify(settings, null, 2), "utf-8");
   return settings;
@@ -252,9 +309,59 @@ function decodeDataUrl(dataUrl: string) {
   return Buffer.from(dataUrl.slice(commaIndex + 1), "base64");
 }
 
-async function readImagePayload(dataUrlOrUrl: string) {
+let proxyDispatcherCache: { url: string; dispatcher: Dispatcher } | null = null;
+
+function activeProxyUrl(settings: Pick<AppSettings, "proxyMode" | "proxyUrl">) {
+  if (settings.proxyMode !== "custom") return "";
+  return normalizeProxyUrl(settings.proxyUrl);
+}
+
+function maskProxyUrl(proxyUrl: string) {
+  if (!proxyUrl) return "";
+  try {
+    const parsed = new URL(proxyUrl);
+    if (parsed.username || parsed.password) {
+      parsed.username = parsed.username ? "***" : "";
+      parsed.password = parsed.password ? "***" : "";
+    }
+    return parsed.toString().replace(/\/$/, "");
+  } catch {
+    return "";
+  }
+}
+
+function proxyLabel(settings: Pick<AppSettings, "proxyMode" | "proxyUrl">) {
+  const proxyUrl = activeProxyUrl(settings);
+  return proxyUrl ? `代理 ${maskProxyUrl(proxyUrl)}` : "直连";
+}
+
+function getProxyDispatcher(settings: Pick<AppSettings, "proxyMode" | "proxyUrl">) {
+  const proxyUrl = activeProxyUrl(settings);
+  if (!proxyUrl) return undefined;
+  if (proxyDispatcherCache?.url === proxyUrl) return proxyDispatcherCache.dispatcher;
+  if (proxyDispatcherCache) {
+    void proxyDispatcherCache.dispatcher.close();
+  }
+  proxyDispatcherCache = {
+    url: proxyUrl,
+    dispatcher: new ProxyAgent(proxyUrl)
+  };
+  return proxyDispatcherCache.dispatcher;
+}
+
+async function fetchWithProxy(url: string, init: RequestInit = {}, settings?: Pick<AppSettings, "proxyMode" | "proxyUrl">) {
+  const dispatcher = settings ? getProxyDispatcher(settings) : undefined;
+  const nextInit = dispatcher ? ({ ...init, dispatcher } as RequestInit & { dispatcher: Dispatcher }) : init;
+  return fetch(url, nextInit as RequestInit);
+}
+
+function createImageApiFetch(settings: Pick<AppSettings, "proxyMode" | "proxyUrl">): ImageApiFetch {
+  return (url, init) => fetchWithProxy(url, init, settings);
+}
+
+async function readImagePayload(dataUrlOrUrl: string, settings?: Pick<AppSettings, "proxyMode" | "proxyUrl">) {
   if (/^https?:\/\//i.test(dataUrlOrUrl)) {
-    const response = await fetch(dataUrlOrUrl);
+    const response = await fetchWithProxy(dataUrlOrUrl, {}, settings);
     if (!response.ok) throw new Error(`图片下载失败：${response.status}`);
     const bytes = Buffer.from(await response.arrayBuffer());
     return {
@@ -633,7 +740,7 @@ function normalizeManifest(value: unknown): UpdateInfo | null {
   };
 }
 
-async function fetchWebsiteUpdateInfo() {
+async function fetchWebsiteUpdateInfo(settings: Pick<AppSettings, "proxyMode" | "proxyUrl">) {
   const response = await fetchWithTimeoutForMain(UPDATE_MANIFEST_URL, {
     method: "GET",
     headers: {
@@ -641,21 +748,21 @@ async function fetchWebsiteUpdateInfo() {
       "Cache-Control": "no-cache",
       "User-Agent": "YunQiao-Image-Studio"
     }
-  }, 12000);
+  }, 12000, settings);
   if (!response.ok) throw new Error(`网站更新清单 HTTP ${response.status}`);
   const manifest = normalizeManifest(await response.json());
   if (!manifest) throw new Error("网站更新清单格式无效");
   return manifest;
 }
 
-async function fetchGithubUpdateInfo() {
+async function fetchGithubUpdateInfo(settings: Pick<AppSettings, "proxyMode" | "proxyUrl">) {
   const response = await fetchWithTimeoutForMain(GITHUB_LATEST_RELEASE_API, {
     method: "GET",
     headers: {
       Accept: "application/vnd.github+json",
       "User-Agent": "YunQiao-Image-Studio"
     }
-  }, 12000);
+  }, 12000, settings);
   if (!response.ok) throw new Error(`GitHub 更新检查 HTTP ${response.status}`);
   const latest = await response.json() as {
     tag_name?: string;
@@ -688,10 +795,10 @@ async function fetchGithubUpdateInfo() {
   };
 }
 
-async function resolveUpdateInfo() {
+async function resolveUpdateInfo(settings: Pick<AppSettings, "proxyMode" | "proxyUrl">) {
   const [websiteResult, githubResult] = await Promise.allSettled([
-    fetchWebsiteUpdateInfo(),
-    fetchGithubUpdateInfo()
+    fetchWebsiteUpdateInfo(settings),
+    fetchGithubUpdateInfo(settings)
   ]);
 
   const website = websiteResult.status === "fulfilled" ? websiteResult.value : null;
@@ -728,13 +835,13 @@ async function resolveUpdateInfo() {
   throw new Error(`${websiteError}；备用 GitHub 也不可用：${githubError}`);
 }
 
-async function testHttpEndpoint(endpoint: string) {
+async function testHttpEndpoint(endpoint: string, settings?: Pick<AppSettings, "proxyMode" | "proxyUrl">) {
   const url = normalizeEndpoint(endpoint);
   if (!url) return { ok: false, message: "Endpoint 为空" };
   const controller = new AbortController();
   const timer = windowlessTimeout(() => controller.abort(), 6000);
   try {
-    const response = await fetch(url, { method: "HEAD", signal: controller.signal });
+    const response = await fetchWithProxy(url, { method: "HEAD", signal: controller.signal }, settings);
     return {
       ok: true,
       message: `网络可达，HTTP 状态 ${response.status}`
@@ -747,7 +854,7 @@ async function testHttpEndpoint(endpoint: string) {
   }
 }
 
-async function testApiConnection(timeoutSeconds: number) {
+async function testApiConnection(settings: AppSettings) {
   const startedAt = Date.now();
   const url = `${FIXED_API_BASE_URL}/v1/models`;
   const response = await fetchWithTimeoutForMain(url, {
@@ -756,7 +863,7 @@ async function testApiConnection(timeoutSeconds: number) {
       Authorization: `Bearer ${await getApiKey()}`,
       Accept: "application/json"
     }
-  }, timeoutSeconds * 1000);
+  }, settings.requestTimeoutSeconds * 1000, settings);
   const text = await response.text();
   return {
     ok: response.ok,
@@ -764,15 +871,45 @@ async function testApiConnection(timeoutSeconds: number) {
     statusText: response.statusText,
     endpoint: url,
     durationMs: Date.now() - startedAt,
-    bodyPreview: text.slice(0, 800)
+    bodyPreview: text.slice(0, 800),
+    proxyMode: settings.proxyMode,
+    proxyUrl: maskProxyUrl(activeProxyUrl(settings)),
+    networkMode: proxyLabel(settings)
   };
 }
 
-async function fetchWithTimeoutForMain(url: string, init: RequestInit, timeoutMs: number) {
+async function testProxyConnection(patch?: Partial<Pick<AppSettings, "proxyMode" | "proxyUrl">>) {
+  const baseSettings = await readSettings();
+  const proxySettings = normalizeProxySettings({ ...baseSettings, ...patch }, true);
+  const settings = { ...baseSettings, ...proxySettings };
+  const startedAt = Date.now();
+  const url = `${FIXED_API_BASE_URL}/v1/models`;
+  const response = await fetchWithTimeoutForMain(url, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+      "User-Agent": "YunQiao-Image-Studio"
+    }
+  }, 10000, settings);
+  const text = await response.text();
+  return {
+    ok: response.status < 500,
+    status: response.status,
+    statusText: response.statusText,
+    endpoint: url,
+    durationMs: Date.now() - startedAt,
+    bodyPreview: text.slice(0, 500),
+    proxyMode: settings.proxyMode,
+    proxyUrl: maskProxyUrl(activeProxyUrl(settings)),
+    networkMode: proxyLabel(settings)
+  };
+}
+
+async function fetchWithTimeoutForMain(url: string, init: RequestInit, timeoutMs: number, settings?: Pick<AppSettings, "proxyMode" | "proxyUrl">) {
   const controller = new AbortController();
   const timer = windowlessTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(url, { ...init, signal: controller.signal });
+    return await fetchWithProxy(url, { ...init, signal: controller.signal }, settings);
   } catch (error) {
     if (controller.signal.aborted) {
       throw new Error(`请求超时（${Math.round(timeoutMs / 1000)} 秒）`);
@@ -839,7 +976,8 @@ ipcMain.handle("app:get-settings", async () => ({
 }));
 
 ipcMain.handle("app:check-update", async () => {
-  const latest = await resolveUpdateInfo();
+  const settings = await readSettings();
+  const latest = await resolveUpdateInfo(settings);
   const currentVersion = app.getVersion();
   const target = currentUpdateTarget();
   const download = latest.downloads[target];
@@ -865,8 +1003,10 @@ ipcMain.handle("settings:update", async (_event, patch: Partial<AppSettings>) =>
 
 ipcMain.handle("api:test", async () => {
   const settings = await readSettings();
-  return testApiConnection(settings.requestTimeoutSeconds);
+  return testApiConnection(settings);
 });
+
+ipcMain.handle("network:test-proxy", async (_event, patch?: Partial<Pick<AppSettings, "proxyMode" | "proxyUrl">>) => testProxyConnection(patch));
 
 ipcMain.handle("dialog:choose-directory", async () => {
   if (!mainWindow) throw new Error("主窗口未就绪");
@@ -929,7 +1069,7 @@ ipcMain.handle("clipboard:copy-image", async (_event, dataUrl: string) => {
 ipcMain.handle("assets:save-image", async (_event, payload: { dataUrl: string; name: string }) => {
   const settings = await readSettings();
   await mkdir(settings.saveDirectory, { recursive: true });
-  const image = await readImagePayload(payload.dataUrl);
+  const image = await readImagePayload(payload.dataUrl, settings);
   const filename = `${sanitizeName(payload.name)}-${Date.now()}.${image.ext}`;
   const filePath = path.join(settings.saveDirectory, filename);
   await writeFile(filePath, image.data);
@@ -937,9 +1077,10 @@ ipcMain.handle("assets:save-image", async (_event, payload: { dataUrl: string; n
 });
 
 ipcMain.handle("assets:save-temp-image", async (_event, payload: { dataUrl: string; name: string }) => {
+  const settings = await readSettings();
   const directory = path.join(app.getPath("userData"), "temp-images");
   await mkdir(directory, { recursive: true });
-  const image = await readImagePayload(payload.dataUrl);
+  const image = await readImagePayload(payload.dataUrl, settings);
   const filename = `${sanitizeName(payload.name)}-${Date.now()}.${image.ext}`;
   const filePath = path.join(directory, filename);
   await writeFile(filePath, image.data);
@@ -1175,17 +1316,18 @@ ipcMain.handle("storage:test", async (_event, payload: { type: string; endpoint?
     if (!payload.host || !payload.port) return { ok: false, message: "请填写服务器地址和端口" };
     return testTcp(payload.host, Number(payload.port));
   }
-  return testHttpEndpoint(payload.endpoint || "");
+  const settings = await readSettings();
+  return testHttpEndpoint(payload.endpoint || "", settings);
 });
 
 ipcMain.handle("image:generate", async (_event, request: ImageGenerationRequest) => {
   const settings = await readSettings();
-  return createImageGeneration(request, await getApiKey(), settings.apiBaseUrl, settings.requestTimeoutSeconds * 1000);
+  return createImageGeneration(request, await getApiKey(), settings.apiBaseUrl, settings.requestTimeoutSeconds * 1000, createImageApiFetch(settings));
 });
 
 ipcMain.handle("image:edit", async (_event, request: ImageEditRequest) => {
   const settings = await readSettings();
-  return createImageEdit(request, await getApiKey(), settings.apiBaseUrl, settings.requestTimeoutSeconds * 1000);
+  return createImageEdit(request, await getApiKey(), settings.apiBaseUrl, settings.requestTimeoutSeconds * 1000, createImageApiFetch(settings));
 });
 
 void app.whenReady().then(createWindow);

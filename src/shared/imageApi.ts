@@ -6,16 +6,18 @@ import { normalizeImageSizeOrThrow } from "./imageSize";
 
 const IMAGE_MODEL = "gpt-image-2";
 
-async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs?: number) {
+export type ImageApiFetch = (url: string, init: RequestInit) => Promise<Response>;
+
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs?: number, fetchImpl: ImageApiFetch = fetch) {
   if (!timeoutMs || timeoutMs <= 0) {
-    return fetch(url, init);
+    return fetchImpl(url, init);
   }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    return await fetch(url, { ...init, signal: controller.signal });
+    return await fetchImpl(url, { ...init, signal: controller.signal });
   } catch (error) {
     if (controller.signal.aborted) {
       throw new Error(`图像接口请求超时（${Math.round(timeoutMs / 1000)} 秒）`);
@@ -88,7 +90,8 @@ export async function createImageGeneration(
   request: ImageGenerationRequest,
   apiKey: string,
   apiBaseUrl: string,
-  timeoutMs?: number
+  timeoutMs?: number,
+  fetchImpl?: ImageApiFetch
 ): Promise<ImageApiResult> {
   const response = await fetchWithTimeout(`${normalizeApiBaseUrl(apiBaseUrl)}/v1/images/generations`, {
     method: "POST",
@@ -97,7 +100,7 @@ export async function createImageGeneration(
       Authorization: `Bearer ${apiKey}`
     },
     body: JSON.stringify(cleanGenerationBody(request))
-  }, timeoutMs);
+  }, timeoutMs, fetchImpl);
 
   return parseImageResponse(response);
 }
@@ -106,7 +109,8 @@ export async function createImageEdit(
   request: ImageEditRequest,
   apiKey: string,
   apiBaseUrl: string,
-  timeoutMs?: number
+  timeoutMs?: number,
+  fetchImpl?: ImageApiFetch
 ): Promise<ImageApiResult> {
   const form = new FormData();
   const body = cleanGenerationBody(request);
@@ -135,7 +139,7 @@ export async function createImageEdit(
       Authorization: `Bearer ${apiKey}`
     },
     body: form
-  }, timeoutMs);
+  }, timeoutMs, fetchImpl);
 
   return parseImageResponse(response);
 }
