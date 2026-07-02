@@ -1,4 +1,4 @@
-# 云桥Pro v0.1.15 使用说明
+# 云桥Pro v0.1.16 使用说明
 
 ## 1. 客户端下载
 
@@ -8,11 +8,11 @@ GitHub Release 页面：
 https://github.com/jxb412/YunQiao-Image-Studio/releases
 ```
 
-v0.1.15 提供三个客户端：
+v0.1.16 提供三个客户端：
 
-- Windows x64：`YunQiao-Image-Studio-0.1.15-win-x64-portable.exe`
-- macOS Intel x64：`YunQiao-Image-Studio-0.1.15-mac-x64.dmg`
-- macOS Apple Silicon arm64：`YunQiao-Image-Studio-0.1.15-mac-arm64.dmg`
+- Windows x64：`YunQiao-Image-Studio-0.1.16-win-x64-portable.exe`
+- macOS Intel x64：`YunQiao-Image-Studio-0.1.16-mac-x64.dmg`
+- macOS Apple Silicon arm64：`YunQiao-Image-Studio-0.1.16-mac-arm64.dmg`
 
 Windows 版本是便携版，下载后双击 exe 即可运行，不需要安装 Node.js、npm 或 Electron。
 
@@ -47,7 +47,7 @@ https://api.0029.org
 
 - 保存 API Key 到本机安全存储。
 - 请求超时时间设置，默认 300 秒，最高 600 秒。
-- 程序代理设置，支持跟随系统代理、手动 HTTP/HTTPS 代理和直连。
+- 程序代理设置，默认勾选跟随系统代理，取消后可选择单独 HTTP/HTTPS 代理或直连。
 - 代理网络测试，显示 HTTP 状态、耗时、系统代理规则、直连/代理模式和返回摘要。
 - 测试 API 连通性，显示 HTTP 状态、耗时、接口返回摘要和错误信息。
 
@@ -57,9 +57,9 @@ API Base URL 不提供自定义修改入口。
 
 如果所在网络无法直接访问国外服务，可在 `API与云端存储设置` 页面配置程序代理。
 
-推荐优先选择 `系统代理`。程序会读取 Windows/macOS 当前网络代理设置，例如 Windows 的“使用代理服务器”、macOS 的 Web Proxy / Secure Web Proxy，以及系统 PAC 自动代理解析出的 HTTP/HTTPS 代理。
+默认勾选 `跟随系统代理`。程序会读取 Windows/macOS 当前网络代理设置，例如 Windows 的“使用代理服务器”、macOS 的 Web Proxy / Secure Web Proxy，以及系统 PAC 自动代理解析出的 HTTP/HTTPS 代理。
 
-如果系统代理没有被正确解析，可切换到 `手动代理`。
+如果系统代理没有被正确解析，可取消勾选，然后选择 `单独代理` 或 `直连`。
 
 常见填写方式：
 

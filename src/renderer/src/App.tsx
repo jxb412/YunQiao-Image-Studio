@@ -4103,24 +4103,36 @@ function SettingsPage({
         )}
         <div className="settingsDivider" />
         <div className="proxySettingsBlock">
-          <div className="proxyModeGrid" role="group" aria-label="程序代理模式">
-            {[
-              { value: "system" as const, label: "系统代理", description: "跟随 Windows/macOS 网络代理设置" },
-              { value: "custom" as const, label: "手动代理", description: "使用下方填写的代理地址" },
-              { value: "off" as const, label: "直连", description: "不使用代理" }
-            ].map((item) => (
-              <button
-                key={item.value}
-                className={`proxyModeButton ${proxyMode === item.value ? "active" : ""}`}
-                onClick={() => onProxyModeChange(item.value)}
-              >
-                <strong>{item.label}</strong>
-                <span>{item.description}</span>
-              </button>
-            ))}
-          </div>
+          <label className="checkRow">
+            <input
+              type="checkbox"
+              checked={proxyMode === "system"}
+              onChange={(event) => onProxyModeChange(event.target.checked ? "system" : proxyUrl.trim() ? "custom" : "off")}
+            />
+            <span>
+              <strong>跟随系统代理</strong>
+              <small>默认开启。Windows/macOS 已配置代理时，生图、修图和更新检查会自动使用系统代理。</small>
+            </span>
+          </label>
+          {proxyMode !== "system" && (
+            <div className="proxyModeGrid" role="group" aria-label="取消系统代理后的连接方式">
+              {[
+                { value: "custom" as const, label: "单独代理", description: "使用下方填写的代理地址" },
+                { value: "off" as const, label: "直连", description: "不使用代理" }
+              ].map((item) => (
+                <button
+                  key={item.value}
+                  className={`proxyModeButton ${proxyMode === item.value ? "active" : ""}`}
+                  onClick={() => onProxyModeChange(item.value)}
+                >
+                  <strong>{item.label}</strong>
+                  <span>{item.description}</span>
+                </button>
+              ))}
+            </div>
+          )}
           <label>
-            手动 HTTP/HTTPS 代理地址
+            单独 HTTP/HTTPS 代理地址
             <input
               value={proxyUrl}
               onChange={(event) => onProxyUrlChange(event.target.value)}
@@ -4130,8 +4142,8 @@ function SettingsPage({
           </label>
           <small className="fieldHint">
             {proxyMode === "system"
-              ? "系统代理会读取 Windows/macOS 当前网络代理；如使用 PAC 脚本，会先解析为可用的 HTTP/HTTPS 代理。"
-              : "手动代理支持 http://host:port、https://host:port，也可填写 http://user:pass@host:port。"}
+              ? "系统代理会读取 Windows/macOS 当前网络代理；如使用 PAC 脚本，会先解析为可用的 HTTP/HTTPS 代理。取消勾选后可改用单独代理或直连。"
+              : "单独代理支持 http://host:port、https://host:port，也可填写 http://user:pass@host:port。"}
           </small>
           <div className="buttonRow">
             <button className="secondaryButton" onClick={onSaveProxySettings}>
