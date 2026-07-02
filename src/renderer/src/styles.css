@@ -1140,6 +1140,47 @@ label {
   gap: 10px;
 }
 
+.proxyModeGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.proxyModeButton {
+  display: grid;
+  gap: 3px;
+  min-height: 64px;
+  padding: 9px 10px;
+  color: #9fb0c8;
+  text-align: left;
+  background: #101a2a;
+  border: 1px solid #2b3a55;
+  border-radius: 8px;
+}
+
+.proxyModeButton.active {
+  color: #f8fbff;
+  background: #17243a;
+  border-color: #4f8cff;
+}
+
+.proxyModeButton strong,
+.proxyModeButton span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.proxyModeButton strong {
+  font-size: 13px;
+}
+
+.proxyModeButton span {
+  font-size: 12px;
+  line-height: 16px;
+  white-space: normal;
+}
+
 .fieldHint {
   display: block;
   margin-top: -4px;

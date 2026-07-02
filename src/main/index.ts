@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeImage, safeStorage, shell } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeImage, safeStorage, session, shell } from "electron";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
@@ -68,7 +68,14 @@ type StorageSecret = {
   password?: string;
 };
 
-type ProxyMode = "off" | "custom";
+type ProxyMode = "system" | "custom" | "off";
+
+type ProxyResolution = {
+  proxyUrl: string;
+  label: string;
+  rule?: string;
+  warning?: string;
+};
 
 type AppSettings = {
   saveDirectory: string;
@@ -89,7 +96,7 @@ function defaultSettings(): AppSettings {
     apiBaseUrl: FIXED_API_BASE_URL,
     autoCheckUpdates: true,
     skippedUpdateVersion: "",
-    proxyMode: "off",
+    proxyMode: "system",
     proxyUrl: ""
   };
 }
@@ -105,7 +112,8 @@ function normalizeApiBaseUrl(_value?: unknown) {
 }
 
 function normalizeProxyMode(value: unknown): ProxyMode {
-  return value === "custom" ? "custom" : "off";
+  if (value === "custom" || value === "off" || value === "system") return value;
+  return "system";
 }
 
 function normalizeProxyUrl(value: unknown) {
@@ -128,7 +136,7 @@ function normalizeProxyUrl(value: unknown) {
 function normalizeProxySettings(settings: Partial<AppSettings>, strict: boolean) {
   const proxyMode = normalizeProxyMode(settings.proxyMode);
   const rawProxyUrl = typeof settings.proxyUrl === "string" ? settings.proxyUrl.trim() : "";
-  if (proxyMode === "off") {
+  if (proxyMode !== "custom") {
     try {
       return { proxyMode, proxyUrl: normalizeProxyUrl(rawProxyUrl) };
     } catch {
@@ -311,11 +319,6 @@ function decodeDataUrl(dataUrl: string) {
 
 let proxyDispatcherCache: { url: string; dispatcher: Dispatcher } | null = null;
 
-function activeProxyUrl(settings: Pick<AppSettings, "proxyMode" | "proxyUrl">) {
-  if (settings.proxyMode !== "custom") return "";
-  return normalizeProxyUrl(settings.proxyUrl);
-}
-
 function maskProxyUrl(proxyUrl: string) {
   if (!proxyUrl) return "";
   try {
@@ -330,13 +333,63 @@ function maskProxyUrl(proxyUrl: string) {
   }
 }
 
-function proxyLabel(settings: Pick<AppSettings, "proxyMode" | "proxyUrl">) {
-  const proxyUrl = activeProxyUrl(settings);
-  return proxyUrl ? `代理 ${maskProxyUrl(proxyUrl)}` : "直连";
+function normalizeSystemProxyHost(host: string) {
+  return host.includes("://") ? host : `http://${host}`;
 }
 
-function getProxyDispatcher(settings: Pick<AppSettings, "proxyMode" | "proxyUrl">) {
-  const proxyUrl = activeProxyUrl(settings);
+function proxyUrlFromSystemRule(ruleText: string): ProxyResolution {
+  const rules = ruleText.split(";").map((rule) => rule.trim()).filter(Boolean);
+  let unsupported = "";
+
+  for (const rule of rules) {
+    if (/^DIRECT$/i.test(rule)) {
+      continue;
+    }
+
+    const match = /^(PROXY|HTTP|HTTPS|SOCKS|SOCKS4|SOCKS5)\s+(.+)$/i.exec(rule);
+    if (!match) {
+      unsupported = unsupported || rule;
+      continue;
+    }
+
+    const type = match[1].toUpperCase();
+    const host = match[2].trim();
+    if (type === "PROXY" || type === "HTTP") {
+      const proxyUrl = normalizeProxyUrl(normalizeSystemProxyHost(host));
+      return { proxyUrl, label: `系统代理 ${maskProxyUrl(proxyUrl)}`, rule };
+    }
+    if (type === "HTTPS") {
+      const proxyUrl = normalizeProxyUrl(host.includes("://") ? host : `https://${host}`);
+      return { proxyUrl, label: `系统代理 ${maskProxyUrl(proxyUrl)}`, rule };
+    }
+
+    unsupported = unsupported || rule;
+  }
+
+  const warning = unsupported ? `系统代理解析为 ${unsupported}，当前仅支持 HTTP/HTTPS 代理，已使用直连` : undefined;
+  return {
+    proxyUrl: "",
+    label: unsupported ? "系统代理不可用，已直连" : "系统代理未启用，已直连",
+    rule: ruleText,
+    warning
+  };
+}
+
+async function activeProxyResolution(targetUrl: string, settings: Pick<AppSettings, "proxyMode" | "proxyUrl">): Promise<ProxyResolution> {
+  if (settings.proxyMode === "off") {
+    return { proxyUrl: "", label: "直连" };
+  }
+
+  if (settings.proxyMode === "custom") {
+    const proxyUrl = normalizeProxyUrl(settings.proxyUrl);
+    return { proxyUrl, label: `手动代理 ${maskProxyUrl(proxyUrl)}` };
+  }
+
+  const rule = await session.defaultSession.resolveProxy(targetUrl);
+  return proxyUrlFromSystemRule(rule || "DIRECT");
+}
+
+function getProxyDispatcher(proxyUrl: string) {
   if (!proxyUrl) return undefined;
   if (proxyDispatcherCache?.url === proxyUrl) return proxyDispatcherCache.dispatcher;
   if (proxyDispatcherCache) {
@@ -350,7 +403,8 @@ function getProxyDispatcher(settings: Pick<AppSettings, "proxyMode" | "proxyUrl"
 }
 
 async function fetchWithProxy(url: string, init: RequestInit = {}, settings?: Pick<AppSettings, "proxyMode" | "proxyUrl">) {
-  const dispatcher = settings ? getProxyDispatcher(settings) : undefined;
+  const proxy = settings ? await activeProxyResolution(url, settings) : { proxyUrl: "", label: "直连" };
+  const dispatcher = getProxyDispatcher(proxy.proxyUrl);
   const nextInit = dispatcher ? ({ ...init, dispatcher } as RequestInit & { dispatcher: Dispatcher }) : init;
   return fetch(url, nextInit as RequestInit);
 }
@@ -857,6 +911,7 @@ async function testHttpEndpoint(endpoint: string, settings?: Pick<AppSettings, "
 async function testApiConnection(settings: AppSettings) {
   const startedAt = Date.now();
   const url = `${FIXED_API_BASE_URL}/v1/models`;
+  const proxy = await activeProxyResolution(url, settings);
   const response = await fetchWithTimeoutForMain(url, {
     method: "GET",
     headers: {
@@ -873,8 +928,10 @@ async function testApiConnection(settings: AppSettings) {
     durationMs: Date.now() - startedAt,
     bodyPreview: text.slice(0, 800),
     proxyMode: settings.proxyMode,
-    proxyUrl: maskProxyUrl(activeProxyUrl(settings)),
-    networkMode: proxyLabel(settings)
+    proxyUrl: maskProxyUrl(proxy.proxyUrl),
+    networkMode: proxy.label,
+    proxyRule: proxy.rule,
+    proxyWarning: proxy.warning
   };
 }
 
@@ -884,6 +941,7 @@ async function testProxyConnection(patch?: Partial<Pick<AppSettings, "proxyMode"
   const settings = { ...baseSettings, ...proxySettings };
   const startedAt = Date.now();
   const url = `${FIXED_API_BASE_URL}/v1/models`;
+  const proxy = await activeProxyResolution(url, settings);
   const response = await fetchWithTimeoutForMain(url, {
     method: "GET",
     headers: {
@@ -900,8 +958,10 @@ async function testProxyConnection(patch?: Partial<Pick<AppSettings, "proxyMode"
     durationMs: Date.now() - startedAt,
     bodyPreview: text.slice(0, 500),
     proxyMode: settings.proxyMode,
-    proxyUrl: maskProxyUrl(activeProxyUrl(settings)),
-    networkMode: proxyLabel(settings)
+    proxyUrl: maskProxyUrl(proxy.proxyUrl),
+    networkMode: proxy.label,
+    proxyRule: proxy.rule,
+    proxyWarning: proxy.warning
   };
 }
 
