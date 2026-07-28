@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag to mirror, for example v0.1.18"
+        description: "Release tag to mirror, for example v0.1.19"
         required: true
-        default: "v0.1.18"
+        default: "v0.1.19"
 
 jobs:
   mirror-ftp:

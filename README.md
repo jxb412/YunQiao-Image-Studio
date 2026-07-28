@@ -6,19 +6,19 @@ YunQiao Image Studio（云桥图像工坊 / 云桥Pro）是一款开源的 AI �
 
 ## 最新版本
 
-当前发布版本：`v0.1.18`
+当前发布版本：`v0.1.19`
 
 GitHub Release 下载页：
 
 ```text
-https://github.com/jxb412/YunQiao-Image-Studio/releases/tag/v0.1.18
+https://github.com/jxb412/YunQiao-Image-Studio/releases/tag/v0.1.19
 ```
 
 客户端文件：
 
-- Windows x64 便携版：`YunQiao-Image-Studio-0.1.18-win-x64-portable.exe`
-- macOS Intel x64：`YunQiao-Image-Studio-0.1.18-mac-x64.dmg`
-- macOS Apple Silicon arm64：`YunQiao-Image-Studio-0.1.18-mac-arm64.dmg`
+- Windows x64 便携版：`YunQiao-Image-Studio-0.1.19-win-x64-portable.exe`
+- macOS Intel x64：`YunQiao-Image-Studio-0.1.19-mac-x64.dmg`
+- macOS Apple Silicon arm64：`YunQiao-Image-Studio-0.1.19-mac-arm64.dmg`
 
 Windows 版本下载后双击即可运行，不需要安装 Node.js、npm 或 Electron。当前开源构建未购买代码签名证书，Windows 首次运行可能出现 SmartScreen “Windows 已保护你的电脑 / 发布者未知”提示，处理方式见本文的 Windows 首次运行说明。macOS 版本当前未做 Apple Developer ID 签名和公证，首次打开方式见本文的 macOS 说明。
 
@@ -36,7 +36,7 @@ Windows 版本下载后双击即可运行，不需要安装 Node.js、npm 或 El
 - 本机安全存储：API Key 和云存储密钥只保存在本机安全存储中。
 - 跨平台配置：同一套代码支持 Windows 和 macOS 构建。
 
-## v0.1.18 更新重点
+## v0.1.19 更新重点
 
 - 新增 Gemini 图像模型接入，支持 `gemini-3.1-flash-image` 文生图、图生图和 AI 修图。
 - API 设置升级为多 Key 多模型配置，可获取模型列表，并在顶部模型选择器切换当前生图模型。
@@ -252,6 +252,7 @@ build/           应用图标资源
 - [行业提示词模板库](./docs/03-industry-prompt-library.md)
 - [编译打包与交付说明](./docs/04-build-and-delivery.md)
 - [macOS 构建说明](./MAC_BUILD.md)
+- [v0.1.19 更新说明](./docs/releases/v0.1.19.md)
 - [v0.1.18 更新说明](./docs/releases/v0.1.18.md)
 
 ## 安全说明

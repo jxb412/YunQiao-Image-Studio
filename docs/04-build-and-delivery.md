@@ -74,7 +74,7 @@ D:\btc\st\st3\release
 客户拿到类似下面的文件即可安装:
 
 ```text
-云桥Pro-0.1.18-x64.exe
+云桥Pro-0.1.19-x64.exe
 ```
 
 ## 6. 打包 Windows 绿色版
@@ -96,14 +96,14 @@ D:\btc\st\st3\scripts\build-win-portable.cmd
 正式交付:
 
 ```text
-YunQiao-Image-Studio-0.1.18-win-x64-portable.exe
+YunQiao-Image-Studio-0.1.19-win-x64-portable.exe
 docs/05-user-guide.md
 ```
 
 内测交付:
 
 ```text
-云桥Pro-0.1.18-x64.exe
+云桥Pro-0.1.19-x64.exe
 docs/05-user-guide.md
 ```
 
@@ -145,8 +145,8 @@ npm run dist:mac
 当前 GitHub Actions 会在 tag 发布时自动构建：
 
 ```text
-YunQiao-Image-Studio-0.1.18-mac-x64.dmg
-YunQiao-Image-Studio-0.1.18-mac-arm64.dmg
+YunQiao-Image-Studio-0.1.19-mac-x64.dmg
+YunQiao-Image-Studio-0.1.19-mac-arm64.dmg
 ```
 
 正式发布需要 Apple Developer 证书和 notarization，否则 macOS 会提示安全限制。未签名版本的打开方式见 `MAC_BUILD.md` 和 `docs/05-user-guide.md`。
@@ -169,20 +169,20 @@ FTP 镜像 workflow 需要配置：
 - Secret `UPDATE_FTP_USER`
 - Secret `UPDATE_FTP_PASSWORD`
 
-不要把服务器账号密码写入源码、README 或 workflow。发布完成后可在 GitHub Actions 手动运行 `Mirror Release FTP`，输入要同步的 tag，例如 `v0.1.18`。
+不要把服务器账号密码写入源码、README 或 workflow。发布完成后可在 GitHub Actions 手动运行 `Mirror Release FTP`，输入要同步的 tag，例如 `v0.1.19`。
 
 发布新版本建议流程：
 
 ```powershell
-npm version 0.1.18 --no-git-tag-version
+npm version 0.1.19 --no-git-tag-version
 npm run lint
 npm run typecheck
 npm test
 npm run build
 npm run dist:win-portable
 git add .
-git commit -m "release: v0.1.18"
-git tag -a v0.1.18 -m "YunQiao Image Studio v0.1.18"
+git commit -m "release: v0.1.19"
+git tag -a v0.1.19 -m "YunQiao Image Studio v0.1.19"
 git push origin main
-git push origin v0.1.18
+git push origin v0.1.19
 ```
