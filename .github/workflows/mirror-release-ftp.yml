@@ -61,19 +61,66 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y lftp
 
+          # The FTP account can upload new files at the site root, while some
+          # existing files or managed subdirectories may be owned by the panel.
+          # Upload the runnable clients first, then mirror latest.json and
+          # nested release folders on a best-effort basis.
           lftp -u "${FTP_USER},${FTP_PASSWORD}" -p "${FTP_PORT}" "${FTP_HOST}" <<EOF
+          set cmd:fail-exit yes
           set ftp:ssl-allow no
           set net:max-retries 3
-          set net:timeout 30
+          set net:timeout 60
+          cd /
+          mput release-assets/*.exe
+          mput release-assets/*.dmg
+          put release-assets/latest.json -o latest-${TAG}.json
+          bye
+          EOF
+
+          lftp -u "${FTP_USER},${FTP_PASSWORD}" -p "${FTP_PORT}" "${FTP_HOST}" <<EOF || echo "Could not overwrite root latest.json; keep versioned manifest latest-${TAG}.json."
+          set cmd:fail-exit yes
+          set ftp:ssl-allow no
+          set net:max-retries 3
+          set net:timeout 60
+          cd /
+          rm -f latest.json
+          put release-assets/latest.json -o latest.json
+          bye
+          EOF
+
+          lftp -u "${FTP_USER},${FTP_PASSWORD}" -p "${FTP_PORT}" "${FTP_HOST}" <<EOF || echo "Could not mirror releases/${TAG}; FTP directory may be managed by the server panel."
+          set cmd:fail-exit yes
+          set ftp:ssl-allow no
+          set net:max-retries 3
+          set net:timeout 60
           mkdir -p releases/${TAG}
           cd releases/${TAG}
           mput release-assets/*
-          cd /
-          put release-assets/latest.json -o latest.json
+          bye
+          EOF
+
+          lftp -u "${FTP_USER},${FTP_PASSWORD}" -p "${FTP_PORT}" "${FTP_HOST}" <<EOF || echo "Could not mirror yunqiao/releases/${TAG}; FTP directory may be managed by the server panel."
+          set cmd:fail-exit yes
+          set ftp:ssl-allow no
+          set net:max-retries 3
+          set net:timeout 60
           mkdir -p yunqiao/releases/${TAG}
           cd yunqiao/releases/${TAG}
           mput release-assets/*
           cd /yunqiao
-          put release-assets/latest.json -o latest.json
+          put release-assets/latest.json -o latest-${TAG}.json
+          bye
+          EOF
+
+          lftp -u "${FTP_USER},${FTP_PASSWORD}" -p "${FTP_PORT}" "${FTP_HOST}" <<EOF || echo "Could not mirror public_html; FTP directory may not be the web root."
+          set cmd:fail-exit yes
+          set ftp:ssl-allow no
+          set net:max-retries 3
+          set net:timeout 60
+          mkdir -p public_html
+          cd public_html
+          mput release-assets/*.exe
+          mput release-assets/*.dmg
+          put release-assets/latest.json -o latest-${TAG}.json
           bye
           EOF
