@@ -2,23 +2,23 @@
 
 YunQiao Image Studio（云桥图像工坊 / 云桥Pro）是一款开源的 AI 图像生成与编辑桌面工具，基于 Electron、React 和 TypeScript 构建。它面向电商、短剧、自媒体、设计团队和商业内容生产场景，支持文生图、图生图、批量生产、行业模板、素材管理、AI 修图工具箱和云端存储。
 
-项目默认使用 OpenAI `gpt-image-2` 模型完成图片生成和图片编辑：文生图调用图片生成接口，图生图、局部重绘和 AI 修图调用图片编辑接口。
+项目支持 OpenAI 兼容的 `gpt-image-2` 与 Gemini 图像模型：两类图像接口都走 `quya.org` 服务，可保存多组 Key、获取模型列表，并在顶部模型选择器切换当前生图模型。
 
 ## 最新版本
 
-当前发布版本：`v0.1.17`
+当前发布版本：`v0.1.18`
 
 GitHub Release 下载页：
 
 ```text
-https://github.com/jxb412/YunQiao-Image-Studio/releases/tag/v0.1.17
+https://github.com/jxb412/YunQiao-Image-Studio/releases/tag/v0.1.18
 ```
 
 客户端文件：
 
-- Windows x64 便携版：`YunQiao-Image-Studio-0.1.17-win-x64-portable.exe`
-- macOS Intel x64：`YunQiao-Image-Studio-0.1.17-mac-x64.dmg`
-- macOS Apple Silicon arm64：`YunQiao-Image-Studio-0.1.17-mac-arm64.dmg`
+- Windows x64 便携版：`YunQiao-Image-Studio-0.1.18-win-x64-portable.exe`
+- macOS Intel x64：`YunQiao-Image-Studio-0.1.18-mac-x64.dmg`
+- macOS Apple Silicon arm64：`YunQiao-Image-Studio-0.1.18-mac-arm64.dmg`
 
 Windows 版本下载后双击即可运行，不需要安装 Node.js、npm 或 Electron。当前开源构建未购买代码签名证书，Windows 首次运行可能出现 SmartScreen “Windows 已保护你的电脑 / 发布者未知”提示，处理方式见本文的 Windows 首次运行说明。macOS 版本当前未做 Apple Developer ID 签名和公证，首次打开方式见本文的 macOS 说明。
 
@@ -31,20 +31,20 @@ Windows 版本下载后双击即可运行，不需要安装 Node.js、npm 或 El
 - 行业模板库：内置电商、短剧、自媒体、漫画动漫、人物图像、二次元头像、潮流社交、虚拟IP、游戏美术、餐饮、品牌广告等模板。
 - 作品素材库：保存生成结果、提示词、参数快照、本地路径和云端 URL。
 - 云端存储：支持 OSS、COS、OBS、七牛、MinIO、FTP、SFTP。
-- 固定接口：API Base URL 固定为 `https://api.0029.org`。
+- 多模型接口：支持 quya.org / `gpt-image-2` 与 Gemini 图像模型，可保存多组 Key 并选择当前模型。
 - 程序代理：默认勾选跟随 Windows/macOS 系统代理，取消后可选择单独 HTTP/HTTPS 代理或直连。
 - 本机安全存储：API Key 和云存储密钥只保存在本机安全存储中。
 - 跨平台配置：同一套代码支持 Windows 和 macOS 构建。
 
-## v0.1.17 更新重点
+## v0.1.18 更新重点
 
-- 修复 Windows 客户端启动时报 `webidl.util.markAsUncloneable is not a function` 的主进程错误。
-- 将代理请求依赖锁定到兼容 Electron 34 运行时的 `undici@6.27.0`，避免打包后启动崩溃。
-- 程序代理交互调整为“跟随系统代理”默认勾选，符合客户本机已开启代理的使用习惯。
-- 取消勾选系统代理后，可在同一区域选择单独代理或直连。
-- 继续支持 Windows/macOS 系统手动代理和 PAC 自动代理解析出的 HTTP/HTTPS 代理。
-- 生图、修图、API 测试、更新检查和远程图片下载都会使用同一套代理解析逻辑。
-- 代理测试会显示 HTTP 状态、耗时、系统代理规则和当前网络模式，方便确认是否真正走代理。
+- 新增 Gemini 图像模型接入，支持 `gemini-3.1-flash-image` 文生图、图生图和 AI 修图。
+- API 设置升级为多 Key 多模型配置，可获取模型列表，并在顶部模型选择器切换当前生图模型。
+- GPT 与 Gemini 图像接口统一使用 quya.org 服务；客户端固定服务地址，不提供自定义 API URL。
+- GPT 与 Gemini 使用不同参数区：GPT 保留尺寸、质量、格式和背景；Gemini 使用输出大小与画幅比例。
+- Gemini 返回图片会读取真实 MIME 类型，结果面板可显示返回类型、图片类型、尺寸、文件大小和耗时。
+- 批量生产工坊跟随当前模型，支持 GPT/Gemini 文生图与图生图任务，并按模型显示尺寸规则。
+- 更新 README、用户手册、技术 API 规范和交付文档。
 
 ## 技术栈
 
@@ -54,7 +54,8 @@ Windows 版本下载后双击即可运行，不需要安装 Node.js、npm 或 El
 - TypeScript
 - Lucide React
 - OpenAI 兼容图片接口
-- 默认图片模型：`gpt-image-2`
+- Gemini 图像接口
+- 默认图片模型：`gpt-image-2`，可切换 Gemini 图像模型
 
 ## 快速开始
 
@@ -83,21 +84,22 @@ npm run build
 
 在应用内打开 `API与云端存储设置` 页面，填写：
 
-- API Base URL：固定为 `https://api.0029.org`，界面不提供自定义修改。
-- API Key：由服务商提供，只保存在本机安全存储中。
+- 固定服务地址：`quya.org`，客户端不提供自定义 API URL 输入。
+- GPT 图像服务：使用 `quya.org`，请先到 `quya.org` 购买套餐并生成 GPT Key。
+- Gemini 图像服务：同样使用 `quya.org`，请保存 Gemini Key，点击 `获取模型` 后选择 `gemini-3.1-flash-image` 等图像模型。
+- 多 Key 管理：可保存多组客户 Key，每组 Key 绑定对应模型；顶部工具栏可选择当前生图模型。
 - 请求超时时间：默认 300 秒，最高 600 秒。
 - 程序代理：默认勾选跟随系统代理；取消后可选择单独 HTTP/HTTPS 代理或直连；保存后会用于 API、生图、修图、更新检查和远程图片下载。
-- 测试 API：可在设置页直接测试 API Key 与接口连通性，并查看状态码、耗时和返回摘要。
-
-如果使用 `0029.org` 服务，需要先到 `0029.org` 购买套餐并生成秘钥。
+- 测试 API：可在设置页直接测试当前模型配置的连通性，并查看状态码、耗时和返回摘要。
 
 ## 图片生成说明
 
-本项目的图片生成和图片编辑能力均围绕 `gpt-image-2` 设计：
+本项目的图片生成和图片编辑能力按当前模型分流：
 
-- 文生图：使用 `gpt-image-2` 生成图片。
-- 图生图：使用 `gpt-image-2` 基于输入图片继续编辑。
-- 局部重绘 / AI 修图：使用 `gpt-image-2` 图片编辑能力处理原图。
+- GPT 文生图：使用 `gpt-image-2` 生成图片。
+- GPT 图生图：使用 `gpt-image-2` 基于输入图片继续编辑。
+- GPT 局部重绘 / AI 修图：使用 `gpt-image-2` 图片编辑能力处理原图。
+- Gemini：使用 `quya.org` 的 Gemini 原生接口生成或编辑图片，参数区会切换为 Gemini 输出大小和画幅比例。
 
 当前默认每次生成或编辑 1 张图片，不主动传递多图数量参数。这样可以避免部分中转接口把数量参数转换成 `tools[0].n` 后被官方接口拒绝。
 
@@ -250,6 +252,7 @@ build/           应用图标资源
 - [行业提示词模板库](./docs/03-industry-prompt-library.md)
 - [编译打包与交付说明](./docs/04-build-and-delivery.md)
 - [macOS 构建说明](./MAC_BUILD.md)
+- [v0.1.18 更新说明](./docs/releases/v0.1.18.md)
 
 ## 安全说明
 

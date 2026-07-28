@@ -1,6 +1,8 @@
 {
-  "apiBaseUrl": "https://api.0029.org",
+  "fixedApiBaseUrl": "https://api.quya.org",
+  "apiBaseUrlCustomizable": false,
   "defaultModel": "gpt-image-2",
+  "geminiDefaultModel": "gemini-3.1-flash-image",
   "apiKeyStorage": "os_keychain",
   "requestTimeoutMs": 300000,
   "maxParallelJobs": 3,

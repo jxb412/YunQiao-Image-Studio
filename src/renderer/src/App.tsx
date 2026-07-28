@@ -43,6 +43,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import { COMMON_IMAGE_SIZES, makeImageSize, validateGptImage2Size, type ImageSizeValue } from "../../shared/imageSize";
+import type { GeminiAspectRatio, GeminiImageSize, ImageProvider } from "../../shared/imageApiTypes";
 import "./styles.css";
 
 type NavItem = {
@@ -135,6 +136,36 @@ type ImageQuality = "auto" | "low" | "medium" | "high";
 type ImageFormat = "png" | "jpeg" | "webp";
 type ImageBackground = "auto" | "opaque";
 
+type ApiProfile = {
+  id: string;
+  name: string;
+  provider: ImageProvider;
+  apiBaseUrl: string;
+  models: string[];
+  selectedModel: string;
+  enabled: boolean;
+  hasKey: boolean;
+  createdAt: number;
+  updatedAt: number;
+};
+
+type ApiProfileDraft = {
+  id?: string;
+  name: string;
+  provider: ImageProvider;
+  apiKey: string;
+  selectedModel: string;
+  models: string[];
+};
+
+type ActiveModelOption = {
+  profileId: string;
+  profileName: string;
+  provider: ImageProvider;
+  model: string;
+  hasKey: boolean;
+};
+
 type GenerationParams = {
   prompt: string;
   avoid: string;
@@ -142,6 +173,8 @@ type GenerationParams = {
   quality: ImageQuality;
   outputFormat: ImageFormat;
   background: ImageBackground;
+  geminiImageSize: GeminiImageSize;
+  geminiAspectRatio: GeminiAspectRatio;
 };
 
 type RetouchToolPreset = {
@@ -184,6 +217,10 @@ type GenerationResult = {
   requestSize?: ImageSize;
   requestQuality?: ImageQuality;
   requestBackground?: ImageBackground;
+  requestProvider?: ImageProvider;
+  requestModel?: string;
+  requestGeminiImageSize?: GeminiImageSize;
+  requestGeminiAspectRatio?: GeminiAspectRatio;
   revisedPrompt?: string;
   error?: string;
   parentId?: string | null;
@@ -237,6 +274,8 @@ type ApiDiagnostic = {
   networkMode?: string;
   proxyRule?: string;
   proxyWarning?: string;
+  provider?: ImageProvider;
+  model?: string;
 };
 
 type ProxyMode = "system" | "custom" | "off";
@@ -273,6 +312,9 @@ type AppSettingsSnapshot = {
   storageProfiles?: StorageProfile[];
   requestTimeoutSeconds?: number;
   apiBaseUrl?: string;
+  apiProfiles?: ApiProfile[];
+  activeApiProfileId?: string;
+  activeModel?: string;
   autoCheckUpdates?: boolean;
   skippedUpdateVersion?: string;
   proxyMode?: ProxyMode;
@@ -281,16 +323,28 @@ type AppSettingsSnapshot = {
 
 type YunqiaoBridge = {
   setApiKey?: (key: string) => Promise<unknown>;
+  saveApiProfile?: (profile: Partial<ApiProfileDraft>) => Promise<AppSettingsSnapshot>;
+  deleteApiProfile?: (profileId: string) => Promise<AppSettingsSnapshot>;
+  selectApiModel?: (payload: { profileId: string; model: string }) => Promise<AppSettingsSnapshot>;
+  fetchApiModels?: (payload: { provider?: ImageProvider; apiKey?: string; profileId?: string }) => Promise<{ ok: boolean; provider: ImageProvider; endpoint: string; durationMs: number; models: string[] }>;
   generateImage?: (request: {
+    profileId?: string;
+    provider?: ImageProvider;
+    model?: string;
     prompt: string;
     size?: ImageSize;
     quality?: ImageQuality;
     output_format?: ImageFormat;
     background?: ImageBackground;
+    geminiImageSize?: GeminiImageSize;
+    geminiAspectRatio?: GeminiAspectRatio;
   }) => Promise<{
-    data?: Array<{ b64_json?: string; url?: string; revised_prompt?: string }>;
+    data?: Array<{ b64_json?: string; url?: string; mime_type?: string; mimeType?: string; revised_prompt?: string }>;
   }>;
   editImage?: (request: {
+    profileId?: string;
+    provider?: ImageProvider;
+    model?: string;
     prompt: string;
     imagePaths: string[];
     maskPath?: string;
@@ -298,8 +352,10 @@ type YunqiaoBridge = {
     quality?: ImageQuality;
     output_format?: ImageFormat;
     background?: ImageBackground;
+    geminiImageSize?: GeminiImageSize;
+    geminiAspectRatio?: GeminiAspectRatio;
   }) => Promise<{
-    data?: Array<{ b64_json?: string; url?: string; revised_prompt?: string }>;
+    data?: Array<{ b64_json?: string; url?: string; mime_type?: string; mimeType?: string; revised_prompt?: string }>;
   }>;
   testApi?: () => Promise<Omit<ApiDiagnostic, "testedAt">>;
   testProxy?: (patch: { proxyMode?: ProxyMode; proxyUrl?: string }) => Promise<Omit<ProxyDiagnostic, "testedAt">>;
@@ -341,6 +397,47 @@ const navItems: NavItem[] = [
   { label: "AI修图工具箱", icon: Brush, group: "assets" },
   { label: "API与云端存储设置", icon: CloudCog, group: "system" }
 ];
+
+const DEFAULT_OPENAI_MODEL = "gpt-image-2";
+const DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-image";
+const GEMINI_IMAGE_SIZES: GeminiImageSize[] = ["1K", "2K"];
+const GEMINI_ASPECT_RATIOS: GeminiAspectRatio[] = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9", "1:4", "4:1"];
+
+function makeApiProfileDraft(patch: Partial<ApiProfileDraft> = {}): ApiProfileDraft {
+  const provider = patch.provider ?? "openai";
+  const defaultModel = provider === "gemini" ? DEFAULT_GEMINI_MODEL : DEFAULT_OPENAI_MODEL;
+  return {
+    id: patch.id,
+    name: patch.name ?? (provider === "gemini" ? "Gemini 图像 Key" : "quya GPT 图像 Key"),
+    provider,
+    apiKey: "",
+    selectedModel: patch.selectedModel ?? defaultModel,
+    models: patch.models?.length ? patch.models : [defaultModel]
+  };
+}
+
+function normalizeApiProfiles(profiles?: ApiProfile[]) {
+  return Array.isArray(profiles) ? profiles : [];
+}
+
+function modelOptionKey(option?: Pick<ActiveModelOption, "profileId" | "model"> | null) {
+  return option ? `${option.profileId}::${option.model}` : "";
+}
+
+function modelOptionsFromProfiles(profiles: ApiProfile[]): ActiveModelOption[] {
+  return profiles
+    .filter((profile) => profile.enabled !== false)
+    .flatMap((profile) => {
+      const models = Array.from(new Set([profile.selectedModel, ...(profile.models ?? [])].filter(Boolean)));
+      return models.map((model) => ({
+        profileId: profile.id,
+        profileName: profile.name,
+        provider: profile.provider,
+        model,
+        hasKey: profile.hasKey
+      }));
+    });
+}
 
 const pageHints: Record<string, string> = {
   工作台: "查看产能、队列、快捷入口和最近项目。",
@@ -1202,6 +1299,28 @@ function imageSizeHint(size: ImageSize) {
   return "符合 gpt-image-2：16 倍数、比例不超过 3:1，且不超过 2K。";
 }
 
+function validateImageSizeForProvider(size: ImageSize, provider: ImageProvider) {
+  if (provider === "openai") return validateGptImage2Size(size);
+  if (size === "auto") return { ok: true, value: "auto" as ImageSize };
+  const match = /^(\d+)x(\d+)$/.exec(size);
+  if (!match) return { ok: false, value: size, message: "Gemini 尺寸格式应为 宽x高，例如 1024x1024。" };
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  if (width <= 0 || height <= 0) return { ok: false, value: size, message: "宽高必须大于 0。" };
+  if (Math.max(width, height) > 2048 || width * height > 2048 * 2048) {
+    return { ok: false, value: size, message: "Gemini 自定义尺寸最高支持 2K。" };
+  }
+  return { ok: true, value: size };
+}
+
+function imageSizeHintForProvider(size: ImageSize, provider: ImageProvider) {
+  if (provider === "openai") return imageSizeHint(size);
+  const validation = validateImageSizeForProvider(size, provider);
+  if (!validation.ok) return validation.message ?? "尺寸不符合 Gemini 要求。";
+  if (size === "auto") return "Gemini 自动选择画幅；也可指定画幅比例和 1K/2K 输出。";
+  return "Gemini 会按尺寸推导画幅比例，并使用 1K/2K 输出大小。";
+}
+
 function creatorGenerateLabel(active: string, isGenerating: boolean) {
   if (isGenerating) return "生成中...";
   if (active === "AI修图工具箱") return "开始修图";
@@ -1255,9 +1374,11 @@ function App() {
   const [avoidText, setAvoidText] = useState(templateLibrary[0].avoid);
   const [variableValues, setVariableValues] = useState<VariableValues>(() => makeVariableValues(templateLibrary[0]));
   const [globalQuery, setGlobalQuery] = useState("");
-  const [apiKey, setApiKey] = useState("");
   const [apiKeySaved, setApiKeySaved] = useState(false);
-  const [apiBaseUrl, setApiBaseUrl] = useState("https://api.0029.org");
+  const [apiBaseUrl, setApiBaseUrl] = useState("https://api.quya.org");
+  const [apiProfiles, setApiProfiles] = useState<ApiProfile[]>([]);
+  const [apiProfileDraft, setApiProfileDraft] = useState<ApiProfileDraft>(() => makeApiProfileDraft());
+  const [activeModelKey, setActiveModelKey] = useState("");
   const [apiDiagnostic, setApiDiagnostic] = useState<ApiDiagnostic | null>(null);
   const [proxyMode, setProxyMode] = useState<ProxyMode>("system");
   const [proxyUrl, setProxyUrl] = useState("");
@@ -1278,7 +1399,9 @@ function App() {
     size: templateLibrary[0].size,
     quality: templateLibrary[0].quality as ImageQuality,
     outputFormat: templateLibrary[0].format as ImageFormat,
-    background: "auto"
+    background: "auto",
+    geminiImageSize: "1K",
+    geminiAspectRatio: "1:1"
   });
   const [results, setResults] = useState<GenerationResult[]>(
     Array.from({ length: 1 }, (_, index) => ({
@@ -1308,6 +1431,13 @@ function App() {
   const currentHint = useMemo(() => pageHints[active] ?? "管理云桥Pro工作流。", [active]);
   const queuedCount = useMemo(() => batchTasks.filter((task) => task.status === "已导入" || task.status === "生成中").length, [batchTasks]);
   const isCreatorActive = creatorPages.has(active);
+  const modelOptions = useMemo(() => modelOptionsFromProfiles(apiProfiles), [apiProfiles]);
+  const activeModelOption = useMemo<ActiveModelOption | null>(() => {
+    const selected = modelOptions.find((option) => modelOptionKey(option) === activeModelKey);
+    return selected ?? modelOptions[0] ?? null;
+  }, [activeModelKey, modelOptions]);
+  const activeProvider = activeModelOption?.provider ?? "openai";
+  const isGeminiActive = activeProvider === "gemini";
 
   const bridge = (window as Window & { yunqiao?: YunqiaoBridge }).yunqiao;
 
@@ -1319,6 +1449,13 @@ function App() {
       if (settings?.storageProfiles) setStorages(settings.storageProfiles);
       if (settings?.requestTimeoutSeconds) setRequestTimeoutSeconds(clampRequestTimeoutSeconds(settings.requestTimeoutSeconds));
       if (settings?.apiBaseUrl) setApiBaseUrl(settings.apiBaseUrl);
+      const profiles = normalizeApiProfiles(settings?.apiProfiles);
+      if (profiles.length > 0) {
+        setApiProfiles(profiles);
+        const activeProfile = profiles.find((profile) => profile.id === settings?.activeApiProfileId) ?? profiles[0];
+        const activeModel = settings?.activeModel || activeProfile.selectedModel;
+        setActiveModelKey(modelOptionKey({ profileId: activeProfile.id, model: activeModel }));
+      }
       if (typeof settings?.autoCheckUpdates === "boolean") setAutoCheckUpdates(settings.autoCheckUpdates);
       if (typeof settings?.skippedUpdateVersion === "string") setSkippedUpdateVersion(settings.skippedUpdateVersion);
       if (settings?.proxyMode) setProxyMode(normalizeProxyMode(settings.proxyMode));
@@ -1381,11 +1518,11 @@ function App() {
 
   function openOfficialSite() {
     if (!bridge?.openExternal) {
-      notify("请访问 0029.org 购买套餐并生成 API Key", "info");
+      notify("请访问 quya.org 购买套餐并生成 API Key", "info");
       return;
     }
-    void bridge.openExternal("https://0029.org").catch((error: unknown) => {
-      const message = error instanceof Error ? error.message : "无法打开 0029.org";
+    void bridge.openExternal("https://quya.org").catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : "无法打开 quya.org";
       notify(message, "warning");
     });
   }
@@ -1555,9 +1692,9 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
       notify("请先填写提示词", "warning");
       return;
     }
-    const sizeValidation = validateGptImage2Size(params.size);
+    const sizeValidation = validateImageSizeForProvider(params.size, activeProvider);
     if (!sizeValidation.ok) {
-      notify(`尺寸不符合 gpt-image-2 要求：${sizeValidation.message}`, "warning");
+      notify(`尺寸不符合 ${isGeminiActive ? "Gemini" : "gpt-image-2"} 要求：${sizeValidation.message}`, "warning");
       return;
     }
     const editingMode = active !== "文生图创作";
@@ -1583,6 +1720,10 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
       requestSize: sizeValidation.value,
       requestQuality: params.quality,
       requestBackground: params.background,
+      requestProvider: activeProvider,
+      requestModel: activeModelOption?.model,
+      requestGeminiImageSize: params.geminiImageSize,
+      requestGeminiAspectRatio: params.geminiAspectRatio,
       prompt: `${params.prompt}\n避免内容：${params.avoid}`,
       parentId
     };
@@ -1592,8 +1733,8 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
     setSelectedResultId(loadingResult.id);
 
     try {
-      if (!apiKeySaved && !apiKey.trim()) {
-        throw new Error("请先在设置页保存 API Key");
+      if (!activeModelOption?.hasKey) {
+        throw new Error("请先在设置页保存当前模型的 API Key");
       }
       if (!editingMode && !bridge?.generateImage) {
         throw new Error("当前运行环境没有加载生图桥接");
@@ -1605,13 +1746,19 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
       if (!imageBridge) {
         throw new Error("当前运行环境没有加载桌面桥接");
       }
+      const outputFormat = isGeminiActive && params.outputFormat === "webp" ? "png" : params.outputFormat;
 
       const request = {
+        profileId: activeModelOption?.profileId,
+        provider: activeProvider,
+        model: activeModelOption?.model,
         prompt: `${params.prompt}\n避免内容：${params.avoid}`,
         size: sizeValidation.value,
         quality: params.quality,
-        output_format: params.outputFormat,
-        background: params.background
+        output_format: outputFormat,
+        background: params.background,
+        geminiImageSize: params.geminiImageSize,
+        geminiAspectRatio: params.geminiAspectRatio
       };
       const maskPath = editingMode && retouchMaskPath ? retouchMaskPath : undefined;
       const response = editingMode
@@ -1623,9 +1770,10 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
         throw new Error("接口没有返回图片数据");
       }
       const apiResults: GenerationResult[] = await Promise.all(responseItems.map(async (item, index) => {
-        const dataUrl = item.b64_json ? `data:image/${params.outputFormat};base64,${item.b64_json}` : item.url;
+        const itemMimeType = item.mime_type ?? item.mimeType ?? `image/${outputFormat}`;
+        const dataUrl = item.b64_json ? `data:${itemMimeType};base64,${item.b64_json}` : item.url;
         const dimensions = dataUrl ? await readImageDimensions(dataUrl) : { width: 0, height: 0 };
-        const mimeType = dataUrlMime(dataUrl) ?? (dataUrl ? `image/${params.outputFormat}` : undefined);
+        const mimeType = dataUrlMime(dataUrl) ?? (dataUrl ? itemMimeType : undefined);
         return {
           id: `asset-${Date.now()}-${index}`,
           label: `${selectedTemplate.scene} ${index + 1}`,
@@ -1638,13 +1786,17 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
           durationMs: completedAt - startedAt,
           responseType: responseTypeFromData(dataUrl),
           mimeType,
-          format: mimeType?.replace("image/", "") ?? params.outputFormat,
+          format: mimeType?.replace("image/", "") ?? outputFormat,
           byteSize: dataUrlByteSize(dataUrl),
           width: dimensions.width || undefined,
           height: dimensions.height || undefined,
           requestSize: sizeValidation.value,
           requestQuality: params.quality,
           requestBackground: params.background,
+          requestProvider: activeProvider,
+          requestModel: activeModelOption?.model,
+          requestGeminiImageSize: params.geminiImageSize,
+          requestGeminiAspectRatio: params.geminiAspectRatio,
           revisedPrompt: item.revised_prompt,
           parentId,
           upload: { status: "未上传" }
@@ -1691,6 +1843,10 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
           requestSize: sizeValidation.value,
           requestQuality: params.quality,
           requestBackground: params.background,
+          requestProvider: activeProvider,
+          requestModel: activeModelOption?.model,
+          requestGeminiImageSize: params.geminiImageSize,
+          requestGeminiAspectRatio: params.geminiAspectRatio,
           parentId
         }
       ]);
@@ -1728,23 +1884,104 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
   }
 
   async function saveApiKey() {
-    if (!apiKey.trim()) {
+    if (!apiProfileDraft.apiKey.trim() && !apiProfileDraft.id) {
       notify("请先输入 API Key", "warning");
       return;
     }
-    if (!bridge?.setApiKey) {
-      notify("当前窗口未加载安全存储桥接，请在桌面客户端中保存 Key", "warning");
+    if (!bridge?.saveApiProfile) {
+      notify("当前窗口未加载安全存储桥接，请在桌面客户端中保存模型配置", "warning");
       return;
     }
-    await bridge.setApiKey(apiKey.trim());
-    setApiKey("");
+    const settings = await bridge.saveApiProfile({
+      ...apiProfileDraft,
+      apiKey: apiProfileDraft.apiKey.trim(),
+      selectedModel: apiProfileDraft.selectedModel.trim() || (apiProfileDraft.provider === "gemini" ? DEFAULT_GEMINI_MODEL : DEFAULT_OPENAI_MODEL)
+    });
+    setApiProfileDraft(makeApiProfileDraft({ provider: apiProfileDraft.provider }));
+    if (settings.apiProfiles) setApiProfiles(settings.apiProfiles);
+    if (settings.activeApiProfileId && settings.activeModel) {
+      setActiveModelKey(modelOptionKey({ profileId: settings.activeApiProfileId, model: settings.activeModel }));
+    }
     setApiKeySaved(true);
-    notify("API Key 已保存到本机安全存储");
+    notify("模型配置和 API Key 已保存到本机安全存储");
+  }
+
+  async function fetchModelsForDraft() {
+    if (!bridge?.fetchApiModels) {
+      notify("当前窗口未加载模型读取桥接，请在桌面客户端中操作", "warning");
+      return;
+    }
+    if (!apiProfileDraft.apiKey.trim() && !apiProfileDraft.id) {
+      notify("请先输入 API Key，或选择已有配置后再获取模型", "warning");
+      return;
+    }
+    try {
+      const result = await bridge.fetchApiModels({
+        provider: apiProfileDraft.provider,
+        apiKey: apiProfileDraft.apiKey.trim() || undefined,
+        profileId: apiProfileDraft.id
+      });
+      const models = result.models.length ? result.models : [apiProfileDraft.provider === "gemini" ? DEFAULT_GEMINI_MODEL : DEFAULT_OPENAI_MODEL];
+      setApiProfileDraft((draft) => ({
+        ...draft,
+        models,
+        selectedModel: models.includes(draft.selectedModel) ? draft.selectedModel : models[0]
+      }));
+      setApiDiagnostic({ ok: true, endpoint: result.endpoint, durationMs: result.durationMs, testedAt: Date.now(), bodyPreview: `已获取 ${models.length} 个图像模型` });
+      notify(`已获取 ${models.length} 个模型`, "success");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "模型列表读取失败";
+      notify(message, "warning");
+      setApiDiagnostic({ ok: false, error: message, endpoint: apiProfileDraft.provider === "gemini" ? `${apiBaseUrl}/v1beta/models` : `${apiBaseUrl}/v1/models`, testedAt: Date.now() });
+    }
+  }
+
+  async function editApiProfile(profile: ApiProfile) {
+    setApiProfileDraft(makeApiProfileDraft({
+      id: profile.id,
+      name: profile.name,
+      provider: profile.provider,
+      selectedModel: profile.selectedModel,
+      models: profile.models
+    }));
+    notify(`已载入 ${profile.name}，可更新 Key 或模型`, "info");
+  }
+
+  async function deleteApiProfile(profileId: string) {
+    if (!bridge?.deleteApiProfile) {
+      notify("当前窗口未加载配置删除桥接", "warning");
+      return;
+    }
+    const settings = await bridge.deleteApiProfile(profileId);
+    if (settings.apiProfiles) setApiProfiles(settings.apiProfiles);
+    if (settings.activeApiProfileId && settings.activeModel) {
+      setActiveModelKey(modelOptionKey({ profileId: settings.activeApiProfileId, model: settings.activeModel }));
+    }
+    setApiKeySaved(Boolean(settings.hasApiKey));
+    notify("模型配置已删除");
+  }
+
+  async function selectActiveModel(value: string) {
+    const option = modelOptions.find((item) => modelOptionKey(item) === value);
+    if (!option) {
+      notify("请先在设置页添加可用模型", "warning");
+      return;
+    }
+    setActiveModelKey(value);
+    if (!bridge?.selectApiModel) return;
+    try {
+      const settings = await bridge.selectApiModel({ profileId: option.profileId, model: option.model });
+      if (settings.apiProfiles) setApiProfiles(settings.apiProfiles);
+      notify(`已切换模型：${option.model}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "模型切换失败";
+      notify(message, "warning");
+    }
   }
 
   async function testApiConnection() {
-    if (!apiKeySaved && !apiKey.trim()) {
-      notify("请先保存 API Key 后再测试接口", "warning");
+    if (!activeModelOption?.hasKey) {
+      notify("请先保存当前模型配置的 API Key 后再测试接口", "warning");
       return;
     }
     if (!bridge?.testApi) {
@@ -1759,7 +1996,7 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
       notify(result.ok ? `API 连接正常：HTTP ${result.status}` : `API 返回异常：HTTP ${result.status}`, result.ok ? "success" : "warning");
     } catch (error) {
       const message = error instanceof Error ? error.message : "未知错误";
-      setApiDiagnostic({ ok: false, error: message, endpoint: `${apiBaseUrl}/v1/models`, testedAt });
+      setApiDiagnostic({ ok: false, error: message, endpoint: activeProvider === "gemini" ? `${apiBaseUrl}/v1beta/models` : `${apiBaseUrl}/v1/models`, testedAt });
       notify(`API 测试失败：${message}`, "warning");
     }
   }
@@ -2262,8 +2499,8 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
       notify("请先导入 Excel 或创建样例任务", "warning");
       return;
     }
-    if (!apiKeySaved && !apiKey.trim()) {
-      notify("请先在设置页保存 API Key", "warning");
+    if (!activeModelOption?.hasKey) {
+      notify("请先在设置页保存当前模型的 API Key", "warning");
       setActive("API与云端存储设置");
       return;
     }
@@ -2285,21 +2522,21 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
       notify("当前运行环境没有加载图片编辑桥接，无法执行批量图生图", "warning");
       return;
     }
-    const batchSizeValidation = validateGptImage2Size(batchSize);
+    const batchSizeValidation = validateImageSizeForProvider(batchSize, activeProvider);
     if (!batchSizeValidation.ok) {
-      notify(`批量输出尺寸不符合 gpt-image-2 要求：${batchSizeValidation.message}`, "warning");
+      notify(`批量输出尺寸不符合 ${isGeminiActive ? "Gemini" : "gpt-image-2"} 要求：${batchSizeValidation.message}`, "warning");
       return;
     }
     const invalidSizeTasks = pendingTasks
-      .map((task) => ({ task, validation: validateGptImage2Size(task.size ?? batchSizeValidation.value) }))
+      .map((task) => ({ task, validation: validateImageSizeForProvider(task.size ?? batchSizeValidation.value, activeProvider) }))
       .filter(({ validation }) => !validation.ok);
     if (invalidSizeTasks.length > 0) {
       const invalidIds = new Set(invalidSizeTasks.map(({ task }) => task.id));
       setBatchTasks((items) =>
         items.map((item) => {
           if (!invalidIds.has(item.id)) return item;
-          const validation = validateGptImage2Size(item.size ?? batchSizeValidation.value);
-          return { ...item, status: "失败", error: `尺寸不符合 gpt-image-2 要求：${validation.message}` };
+          const validation = validateImageSizeForProvider(item.size ?? batchSizeValidation.value, activeProvider);
+          return { ...item, status: "失败", error: `尺寸不符合 ${isGeminiActive ? "Gemini" : "gpt-image-2"} 要求：${validation.message}` };
         })
       );
       notify(`发现 ${invalidSizeTasks.length} 条任务尺寸无效，已标记失败，请修正后重试`, "warning");
@@ -2341,18 +2578,23 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
             }
             const itemStartedAt = Date.now();
             const request = {
+              profileId: activeModelOption?.profileId,
+              provider: activeProvider,
+              model: activeModelOption?.model,
               prompt: task.prompt,
               size: task.size ?? batchSizeValidation.value,
               quality: "medium" as ImageQuality,
               output_format: "png" as ImageFormat,
-              background: "auto" as ImageBackground
+              background: "auto" as ImageBackground,
+              geminiImageSize: generationParams.geminiImageSize,
+              geminiAspectRatio: generationParams.geminiAspectRatio
             };
-            const taskSizeValidation = validateGptImage2Size(request.size);
+            const taskSizeValidation = validateImageSizeForProvider(request.size, activeProvider);
             if (!taskSizeValidation.ok) {
-              throw new Error(`任务尺寸不符合 gpt-image-2 要求：${taskSizeValidation.message}`);
+              throw new Error(`任务尺寸不符合 ${isGeminiActive ? "Gemini" : "gpt-image-2"} 要求：${taskSizeValidation.message}`);
             }
             request.size = taskSizeValidation.value;
-            let response: { data?: Array<{ b64_json?: string; url?: string; revised_prompt?: string }> } | null = null;
+            let response: { data?: Array<{ b64_json?: string; url?: string; mime_type?: string; mimeType?: string; revised_prompt?: string }> } | null = null;
             let lastError: unknown = null;
             for (let attempt = 0; attempt <= batchRetryLimit; attempt += 1) {
               try {
@@ -2370,7 +2612,8 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
               }
             }
             const first = response?.data?.[0];
-            const dataUrl = first?.b64_json ? `data:image/png;base64,${first.b64_json}` : first?.url;
+            const firstMimeType = first?.mime_type ?? first?.mimeType ?? "image/png";
+            const dataUrl = first?.b64_json ? `data:${firstMimeType};base64,${first.b64_json}` : first?.url;
             if (!dataUrl) {
               throw lastError instanceof Error ? lastError : new Error("接口没有返回图片数据");
             }
@@ -2397,6 +2640,10 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
               requestSize: request.size,
               requestQuality: "medium",
               requestBackground: "auto",
+              requestProvider: activeProvider,
+              requestModel: activeModelOption?.model,
+              requestGeminiImageSize: generationParams.geminiImageSize,
+              requestGeminiAspectRatio: generationParams.geminiAspectRatio,
               revisedPrompt: first?.revised_prompt,
               upload: { status: "未上传" }
             };
@@ -2522,13 +2769,24 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
         </div>
 
         <div className="topActions">
-          <button className="modelButton" onClick={() => notify("当前固定模型：gpt-image-2")}>
-            gpt-image-2
+          <div className="modelSelectWrap">
+            <select
+              className="modelSelect"
+              value={activeModelKey}
+              onChange={(event) => selectActiveModel(event.target.value)}
+              aria-label="选择生图模型"
+            >
+              {modelOptions.length ? modelOptions.map((option) => (
+                <option value={modelOptionKey(option)} key={modelOptionKey(option)}>
+                  {option.provider === "gemini" ? "Gemini" : "GPT"} · {option.model}
+                </option>
+              )) : <option value="">请先配置模型</option>}
+            </select>
             <ChevronDown size={14} />
-          </button>
+          </div>
           <button className="siteButton" onClick={openOfficialSite}>
             <ExternalLink size={15} />
-            0029.org
+            quya.org
           </button>
           <button className="quotaButton" onClick={() => setActive("API与云端存储设置")}>
             <Gauge size={16} />
@@ -2602,6 +2860,7 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
             onAvoidChange={setAvoidText}
             onVariableChange={(key, value) => setVariableValues((values) => ({ ...values, [key]: value }))}
             params={generationParams}
+            activeModel={activeModelOption}
             results={results}
             selectedResultId={selectedResultId}
             stageView={stageView}
@@ -2643,6 +2902,7 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
           <BatchPage
             tasks={batchTasks}
             batchSize={batchSize}
+            activeProvider={activeProvider}
             isRunning={isBatchRunning}
             controlStatus={batchControlStatus}
             retryLimit={batchRetryLimit}
@@ -2785,8 +3045,9 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
           />
         ) : (
           <SettingsPage
-            apiKey={apiKey}
-            apiBaseUrl={apiBaseUrl}
+            apiProfiles={apiProfiles}
+            apiProfileDraft={apiProfileDraft}
+            activeModel={activeModelOption}
             apiDiagnostic={apiDiagnostic}
             proxyMode={proxyMode}
             proxyUrl={proxyUrl}
@@ -2797,7 +3058,19 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
             requestTimeoutSeconds={requestTimeoutSeconds}
             autoCheckUpdates={autoCheckUpdates}
             skippedUpdateVersion={skippedUpdateVersion}
-            onApiKeyChange={setApiKey}
+            onApiProfileDraftChange={(patch) => setApiProfileDraft((draft) => {
+              const nextProvider = patch.provider ?? draft.provider;
+              const providerChanged = patch.provider && patch.provider !== draft.provider;
+              return {
+                ...draft,
+                ...(providerChanged ? makeApiProfileDraft({ provider: nextProvider }) : {}),
+                ...patch,
+                provider: nextProvider
+              };
+            })}
+            onFetchModels={fetchModelsForDraft}
+            onEditApiProfile={editApiProfile}
+            onDeleteApiProfile={deleteApiProfile}
             onTestApi={testApiConnection}
             onProxyModeChange={setProxyMode}
             onProxyUrlChange={setProxyUrl}
@@ -3035,6 +3308,7 @@ function CreatorPage({
   templates,
   currentProject,
   params,
+  activeModel,
   results,
   selectedResultId,
   stageView,
@@ -3075,6 +3349,7 @@ function CreatorPage({
   templates: Template[];
   currentProject: string;
   params: GenerationParams;
+  activeModel: ActiveModelOption | null;
   results: GenerationResult[];
   selectedResultId: string | null;
   stageView: StageView;
@@ -3113,6 +3388,8 @@ function CreatorPage({
   const finalPrompt = fillPromptVariables(promptText, variableValues);
   const finalAvoid = fillPromptVariables(avoidText, variableValues);
   const selectedRetouchTool = retouchTools.find((tool) => tool.id === selectedRetouchToolId) ?? retouchTools[0];
+  const activeProvider = activeModel?.provider ?? "openai";
+  const isGemini = activeProvider === "gemini";
   const filledResults: GenerationResult[] = results.length > 0 ? results : Array.from({ length: 1 }, (_, index) => ({
     id: `placeholder-${index}`,
     label: `等待生成 ${index + 1}`,
@@ -3329,34 +3606,65 @@ function CreatorPage({
           <ImageSizeControl
             value={params.size}
             options={sizeOptions}
+            provider={activeProvider}
             onChange={(size) => onParamsChange({ size })}
           />
         </label>
-        <label>
-          质量
-          <select value={params.quality} onChange={(event) => onParamsChange({ quality: event.target.value as ImageQuality })}>
-            <option>auto</option>
-            <option>low</option>
-            <option>medium</option>
-            <option>high</option>
-          </select>
-        </label>
-        <label>
-          输出格式
-          <select value={params.outputFormat} onChange={(event) => onParamsChange({ outputFormat: event.target.value as ImageFormat })}>
-            <option>png</option>
-            <option>jpeg</option>
-            <option>webp</option>
-          </select>
-        </label>
-        <label>
-          背景
-          <select value={params.background} onChange={(event) => onParamsChange({ background: event.target.value as ImageBackground })}>
-            <option>auto</option>
-            <option>opaque</option>
-          </select>
-        </label>
+        {isGemini ? (
+          <>
+            <label>
+              Gemini 输出大小
+              <select value={params.geminiImageSize} onChange={(event) => onParamsChange({ geminiImageSize: event.target.value as GeminiImageSize })}>
+                {GEMINI_IMAGE_SIZES.map((size) => <option value={size} key={size}>{size}</option>)}
+              </select>
+            </label>
+            <label>
+              Gemini 画幅比例
+              <select value={params.geminiAspectRatio} onChange={(event) => onParamsChange({ geminiAspectRatio: event.target.value as GeminiAspectRatio })}>
+                {GEMINI_ASPECT_RATIOS.map((ratio) => <option value={ratio} key={ratio}>{ratio}</option>)}
+              </select>
+            </label>
+            <label>
+              输出格式
+              <select value={params.outputFormat === "webp" ? "png" : params.outputFormat} onChange={(event) => onParamsChange({ outputFormat: event.target.value as ImageFormat })}>
+                <option>png</option>
+                <option>jpeg</option>
+              </select>
+            </label>
+          </>
+        ) : (
+          <>
+            <label>
+              质量
+              <select value={params.quality} onChange={(event) => onParamsChange({ quality: event.target.value as ImageQuality })}>
+                <option>auto</option>
+                <option>low</option>
+                <option>medium</option>
+                <option>high</option>
+              </select>
+            </label>
+            <label>
+              输出格式
+              <select value={params.outputFormat} onChange={(event) => onParamsChange({ outputFormat: event.target.value as ImageFormat })}>
+                <option>png</option>
+                <option>jpeg</option>
+                <option>webp</option>
+              </select>
+            </label>
+            <label>
+              背景
+              <select value={params.background} onChange={(event) => onParamsChange({ background: event.target.value as ImageBackground })}>
+                <option>auto</option>
+                <option>opaque</option>
+              </select>
+            </label>
+          </>
+        )}
         <div className="paramGroup">
+          <div>
+            <span>当前模型</span>
+            <strong>{activeModel?.model ?? "未配置"}</strong>
+          </div>
           <div>
             <span>上传模式</span>
             <strong>本地自动保存</strong>
@@ -3414,10 +3722,12 @@ function StageDetailPanel({
 function ImageSizeControl({
   value,
   options = COMMON_IMAGE_SIZES,
+  provider = "openai",
   onChange
 }: {
   value: ImageSize;
   options?: ImageSize[];
+  provider?: ImageProvider;
   onChange: (size: ImageSize) => void;
 }) {
   const normalizedOptions = useMemo(() => Array.from(new Set(options)), [options]);
@@ -3430,8 +3740,8 @@ function ImageSizeControl({
 
   const selectedMode = draft.enabled || !isKnownSize ? "custom" : value;
   const previewSize = draft.enabled ? customSizeValue(draft) : value;
-  const validation = validateGptImage2Size(previewSize);
-  const hint = validation.ok ? imageSizeHint(previewSize) : validation.message;
+  const validation = validateImageSizeForProvider(previewSize, provider);
+  const hint = validation.ok ? imageSizeHintForProvider(previewSize, provider) : validation.message;
 
   function updateCustomSize(patch: Partial<CustomSizeDraft>) {
     setDraft((current) => {
@@ -3507,14 +3817,25 @@ function ResultInfoPanel({ result, onCopy }: { result?: GenerationResult; onCopy
       <div className="infoGrid">
         <InfoMetric label="状态" value={result.error ? "失败" : result.status} tone={result.error ? "warning" : "success"} />
         <InfoMetric label="来源" value={result.source ?? "未记录"} />
+        <InfoMetric label="模型" value={result.requestModel ?? "未记录"} />
+        <InfoMetric label="服务" value={result.requestProvider === "gemini" ? "Gemini" : result.requestProvider === "openai" ? "GPT/quya" : "未记录"} />
         <InfoMetric label="耗时" value={formatDuration(result.durationMs)} />
         <InfoMetric label="完成时间" value={formatTime(result.completedAt)} />
         <InfoMetric label="返回类型" value={result.responseType ?? "未记录"} />
         <InfoMetric label="图片类型" value={result.mimeType ?? result.format ?? "未知"} />
         <InfoMetric label="图片尺寸" value={result.width && result.height ? `${result.width} x ${result.height}` : result.requestSize ?? "未知"} />
         <InfoMetric label="文件大小" value={formatBytes(result.byteSize)} />
-        <InfoMetric label="质量" value={result.requestQuality ?? "未记录"} />
-        <InfoMetric label="背景" value={result.requestBackground ?? "未记录"} />
+        {result.requestProvider === "gemini" ? (
+          <>
+            <InfoMetric label="Gemini大小" value={result.requestGeminiImageSize ?? "未记录"} />
+            <InfoMetric label="画幅比例" value={result.requestGeminiAspectRatio ?? "未记录"} />
+          </>
+        ) : (
+          <>
+            <InfoMetric label="质量" value={result.requestQuality ?? "未记录"} />
+            <InfoMetric label="背景" value={result.requestBackground ?? "未记录"} />
+          </>
+        )}
       </div>
 
       {result.error && (
@@ -3622,6 +3943,7 @@ function IterationChainPanel({ results }: { results: GenerationResult[] }) {
 function BatchPage({
   tasks,
   batchSize,
+  activeProvider,
   isRunning,
   controlStatus,
   retryLimit,
@@ -3643,6 +3965,7 @@ function BatchPage({
 }: {
   tasks: BatchTask[];
   batchSize: ImageSize;
+  activeProvider: ImageProvider;
   isRunning: boolean;
   controlStatus: BatchControlStatus;
   retryLimit: number;
@@ -3662,6 +3985,9 @@ function BatchPage({
   onClearCompleted: () => void;
   onRemove: (taskId: string) => void;
 }) {
+  const sizeRuleText = activeProvider === "gemini"
+    ? "Gemini 自定义尺寸最高 2K，会自动映射为画幅比例和 1K/2K 输出"
+    : "自定义尺寸最高 2K，宽高必须符合 gpt-image-2 的 16 倍数规则";
   const rows = tasks.map((task) => [
     task.project,
     task.industry,
@@ -3769,7 +4095,7 @@ function BatchPage({
           失败自动重试次数
           <input type="number" min={0} max={5} value={retryLimit} onChange={(event) => onRetryLimitChange(Math.min(5, Math.max(0, Number(event.target.value) || 0)))} />
         </label>
-        <InfoList items={["Excel 列顺序：项目、行业、模板、数量、提示词、尺寸（可选）", "每条任务可绑定底图；有底图走图生图，没有底图走文生图", "可从文件夹批量绑定底图，按任务顺序循环分配", "支持暂停、继续、停止和失败自动重试", "自定义尺寸最高 2K，宽高必须符合 gpt-image-2 规则"]} />
+        <InfoList items={["Excel 列顺序：项目、行业、模板、数量、提示词、尺寸（可选）", "每条任务可绑定底图；有底图走图生图，没有底图走文生图", "可从文件夹批量绑定底图，按任务顺序循环分配", "支持暂停、继续、停止和失败自动重试", sizeRuleText]} />
       </section>
     </div>
   );
@@ -3994,8 +4320,9 @@ function AssetPage({
 }
 
 function SettingsPage({
-  apiKey,
-  apiBaseUrl,
+  apiProfiles,
+  apiProfileDraft,
+  activeModel,
   apiDiagnostic,
   proxyMode,
   proxyUrl,
@@ -4006,7 +4333,10 @@ function SettingsPage({
   requestTimeoutSeconds,
   autoCheckUpdates,
   skippedUpdateVersion,
-  onApiKeyChange,
+  onApiProfileDraftChange,
+  onFetchModels,
+  onEditApiProfile,
+  onDeleteApiProfile,
   onTestApi,
   onProxyModeChange,
   onProxyUrlChange,
@@ -4027,8 +4357,9 @@ function SettingsPage({
   onTestStorageUpload,
   onSetDefault
 }: {
-  apiKey: string;
-  apiBaseUrl: string;
+  apiProfiles: ApiProfile[];
+  apiProfileDraft: ApiProfileDraft;
+  activeModel: ActiveModelOption | null;
   apiDiagnostic: ApiDiagnostic | null;
   proxyMode: ProxyMode;
   proxyUrl: string;
@@ -4039,7 +4370,10 @@ function SettingsPage({
   requestTimeoutSeconds: number;
   autoCheckUpdates: boolean;
   skippedUpdateVersion: string;
-  onApiKeyChange: (value: string) => void;
+  onApiProfileDraftChange: (patch: Partial<ApiProfileDraft>) => void;
+  onFetchModels: () => void;
+  onEditApiProfile: (profile: ApiProfile) => void;
+  onDeleteApiProfile: (profileId: string) => void;
   onTestApi: () => void;
   onProxyModeChange: (value: ProxyMode) => void;
   onProxyUrlChange: (value: string) => void;
@@ -4071,32 +4405,76 @@ function SettingsPage({
         <div className="panelHeader">
           <div>
             <h2>API 设置</h2>
-            <p>服务地址固定为 0029.org。请先到 0029.org 购买套餐并生成秘钥；Key 只保存在本机安全存储中。</p>
+            <p>固定服务地址为 quya.org，不提供自定义 API URL。可保存多组 Key、获取模型列表，并在顶部选择当前生图模型；Key 只保存在本机安全存储中。</p>
           </div>
           <Database size={18} />
         </div>
-        <label>
-          固定 API Base URL
-          <input value={apiBaseUrl} readOnly />
-        </label>
-        <label>
-          API Key
-          <input type="password" value={apiKey} onChange={(event) => onApiKeyChange(event.target.value)} placeholder="输入测试或客户专属 Key" />
-        </label>
+        <div className="apiProfileEditor">
+          <label>
+            服务类型
+            <select value={apiProfileDraft.provider} onChange={(event) => onApiProfileDraftChange({ provider: event.target.value as ImageProvider })}>
+              <option value="openai">GPT 图像 / quya.org</option>
+              <option value="gemini">Gemini 图像</option>
+            </select>
+          </label>
+          <label>
+            配置名称
+            <input value={apiProfileDraft.name} onChange={(event) => onApiProfileDraftChange({ name: event.target.value })} placeholder="例如 客户A-GPT 或 客户B-Gemini" />
+          </label>
+          <label>
+            API Key
+            <input type="password" value={apiProfileDraft.apiKey} onChange={(event) => onApiProfileDraftChange({ apiKey: event.target.value })} placeholder={apiProfileDraft.id ? "留空则沿用已保存 Key" : "输入客户专属 Key"} />
+          </label>
+          <label>
+            模型
+            <select value={apiProfileDraft.selectedModel} onChange={(event) => onApiProfileDraftChange({ selectedModel: event.target.value })}>
+              {apiProfileDraft.models.map((model) => <option value={model} key={model}>{model}</option>)}
+            </select>
+          </label>
+          <label>
+            手动模型名
+            <input
+              value={apiProfileDraft.selectedModel}
+              onChange={(event) => onApiProfileDraftChange({
+                selectedModel: event.target.value,
+                models: apiProfileDraft.models.includes(event.target.value) ? apiProfileDraft.models : [event.target.value, ...apiProfileDraft.models]
+              })}
+              placeholder={apiProfileDraft.provider === "gemini" ? DEFAULT_GEMINI_MODEL : DEFAULT_OPENAI_MODEL}
+            />
+          </label>
+        </div>
         <div className="buttonRow">
           <button className="primaryButton" onClick={onSaveApiKey}>
             <TestTube2 size={16} />
-            保存 API Key
+            保存模型配置
+          </button>
+          <button className="secondaryButton" onClick={onFetchModels}>
+            <CloudCog size={16} />
+            获取模型
           </button>
           <button className="secondaryButton" onClick={onTestApi}>
             <CloudCog size={16} />
-            测试 API
+            测试当前模型
           </button>
+        </div>
+        <div className="apiProfileList">
+          {apiProfiles.map((profile) => (
+            <div className={`apiProfileRow ${activeModel?.profileId === profile.id ? "active" : ""}`} key={profile.id}>
+              <div>
+                <strong>{profile.name}</strong>
+                <span>{profile.provider === "gemini" ? "Gemini" : "GPT/quya"} · {profile.selectedModel} · {profile.hasKey ? "Key 已保存" : "未保存 Key"}</span>
+              </div>
+              <div className="buttonRow compactButtons">
+                <button className="secondaryButton" onClick={() => onEditApiProfile(profile)}>编辑</button>
+                <button className="secondaryButton dangerButton" onClick={() => onDeleteApiProfile(profile.id)}>删除</button>
+              </div>
+            </div>
+          ))}
         </div>
         {apiDiagnostic && (
           <div className={`diagnosticBox ${apiDiagnostic.ok ? "success" : "warning"}`}>
             <strong>{apiDiagnostic.ok ? "API 连接正常" : "API 连接异常"}</strong>
-            <span>{apiDiagnostic.endpoint ?? apiBaseUrl} · {apiDiagnostic.status ? `HTTP ${apiDiagnostic.status}` : "无状态码"} · {formatDuration(apiDiagnostic.durationMs)} · {formatTime(apiDiagnostic.testedAt)} · {apiDiagnostic.networkMode ?? "直连"}</span>
+            <span>{apiDiagnostic.endpoint ?? "当前模型服务"} · {apiDiagnostic.status ? `HTTP ${apiDiagnostic.status}` : "无状态码"} · {formatDuration(apiDiagnostic.durationMs)} · {formatTime(apiDiagnostic.testedAt)} · {apiDiagnostic.networkMode ?? "直连"}</span>
             {apiDiagnostic.proxyRule && <span>系统规则：{apiDiagnostic.proxyRule}</span>}
             <code>{apiDiagnostic.error ?? apiDiagnostic.proxyWarning ?? apiDiagnostic.bodyPreview ?? apiDiagnostic.statusText ?? "无返回详情"}</code>
           </div>
@@ -4158,7 +4536,7 @@ function SettingsPage({
           {proxyDiagnostic && (
             <div className={`diagnosticBox ${proxyDiagnostic.ok ? "success" : "warning"}`}>
               <strong>{proxyDiagnostic.ok ? "网络可达" : "网络异常"}</strong>
-              <span>{proxyDiagnostic.endpoint ?? apiBaseUrl} · {proxyDiagnostic.status ? `HTTP ${proxyDiagnostic.status}` : "无状态码"} · {formatDuration(proxyDiagnostic.durationMs)} · {formatTime(proxyDiagnostic.testedAt)} · {proxyDiagnostic.networkMode ?? "直连"}</span>
+              <span>{proxyDiagnostic.endpoint ?? "当前模型服务"} · {proxyDiagnostic.status ? `HTTP ${proxyDiagnostic.status}` : "无状态码"} · {formatDuration(proxyDiagnostic.durationMs)} · {formatTime(proxyDiagnostic.testedAt)} · {proxyDiagnostic.networkMode ?? "直连"}</span>
               {proxyDiagnostic.proxyRule && <span>系统规则：{proxyDiagnostic.proxyRule}</span>}
               <code>{proxyDiagnostic.error ?? proxyDiagnostic.proxyWarning ?? proxyDiagnostic.bodyPreview ?? proxyDiagnostic.statusText ?? "无返回详情"}</code>
             </div>

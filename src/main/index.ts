@@ -15,11 +15,15 @@ import { ProxyAgent, type Dispatcher } from "undici";
 
 import { createImageEdit, createImageGeneration } from "../shared/imageApi";
 import type { ImageApiFetch } from "../shared/imageApi";
-import type { ImageEditRequest, ImageGenerationRequest } from "../shared/imageApiTypes";
+import type { ImageEditRequest, ImageGenerationRequest, ImageProvider } from "../shared/imageApiTypes";
 
 let mainWindow: BrowserWindow | null = null;
 let encryptedApiKey: Buffer | null = null;
-const FIXED_API_BASE_URL = "https://api.0029.org";
+const FIXED_API_BASE_URL = "https://api.quya.org";
+const GEMINI_API_BASE_URL = `${FIXED_API_BASE_URL}/v1beta`;
+const DEFAULT_OPENAI_MODEL = "gpt-image-2";
+const DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-image";
+const FALLBACK_GEMINI_IMAGE_MODELS = ["gemini-3.1-flash-image", "gemini-3-pro-image-preview", "gemini-2.5-flash-image"];
 const SUPPORTED_IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp"]);
 const UPDATE_MANIFEST_URL = "https://down.haowucm.cn/latest.json";
 const GITHUB_LATEST_RELEASE_API = "https://api.github.com/repos/jxb412/YunQiao-Image-Studio/releases/latest";
@@ -77,16 +81,106 @@ type ProxyResolution = {
   warning?: string;
 };
 
+type PersistedApiProfile = {
+  id: string;
+  name: string;
+  provider: ImageProvider;
+  apiBaseUrl: string;
+  models: string[];
+  selectedModel: string;
+  enabled: boolean;
+  hasKey: boolean;
+  createdAt: number;
+  updatedAt: number;
+};
+
+type ApiProfileSecret = {
+  apiKey: string;
+};
+
 type AppSettings = {
   saveDirectory: string;
   storageProfiles: PersistedStorageProfile[];
   requestTimeoutSeconds: number;
   apiBaseUrl: string;
+  apiProfiles: PersistedApiProfile[];
+  activeApiProfileId: string;
+  activeModel: string;
   autoCheckUpdates: boolean;
   skippedUpdateVersion: string;
   proxyMode: ProxyMode;
   proxyUrl: string;
 };
+
+function normalizeProvider(value: unknown): ImageProvider {
+  return value === "gemini" ? "gemini" : "openai";
+}
+
+function defaultModelsForProvider(provider: ImageProvider) {
+  return provider === "gemini" ? [DEFAULT_GEMINI_MODEL] : [DEFAULT_OPENAI_MODEL];
+}
+
+function defaultBaseUrlForProvider(provider: ImageProvider) {
+  return provider === "gemini" ? GEMINI_API_BASE_URL : FIXED_API_BASE_URL;
+}
+
+function defaultApiProfile(): PersistedApiProfile {
+  const now = Date.now();
+  return {
+    id: "quya-openai-default",
+    name: "quya GPT 图像",
+    provider: "openai",
+    apiBaseUrl: FIXED_API_BASE_URL,
+    models: [DEFAULT_OPENAI_MODEL],
+    selectedModel: DEFAULT_OPENAI_MODEL,
+    enabled: true,
+    hasKey: false,
+    createdAt: now,
+    updatedAt: now
+  };
+}
+
+function normalizeApiProfile(value: unknown, fallbackIndex = 0): PersistedApiProfile {
+  const source = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const provider = normalizeProvider(source.provider);
+  const defaults = defaultModelsForProvider(provider);
+  const models = Array.isArray(source.models)
+    ? Array.from(new Set(source.models.map(String).map((item) => item.trim()).filter(Boolean)))
+    : defaults;
+  const selectedModel = typeof source.selectedModel === "string" && source.selectedModel.trim()
+    ? source.selectedModel.trim()
+    : models[0] ?? defaults[0];
+  const now = Date.now();
+  return {
+    id: typeof source.id === "string" && source.id.trim() ? source.id.trim() : `api-profile-${now}-${fallbackIndex}`,
+    name: typeof source.name === "string" && source.name.trim() ? source.name.trim() : provider === "gemini" ? "Gemini 图像" : "quya GPT 图像",
+    provider,
+    apiBaseUrl: defaultBaseUrlForProvider(provider),
+    models: models.includes(selectedModel) ? models : [selectedModel, ...models],
+    selectedModel,
+    enabled: source.enabled !== false,
+    hasKey: source.hasKey === true,
+    createdAt: typeof source.createdAt === "number" ? source.createdAt : now,
+    updatedAt: typeof source.updatedAt === "number" ? source.updatedAt : now
+  };
+}
+
+function normalizeApiProfiles(value: unknown) {
+  const profiles = Array.isArray(value) ? value.map((item, index) => normalizeApiProfile(item, index)) : [];
+  return profiles.length ? profiles : [defaultApiProfile()];
+}
+
+function ensureActiveApiSelection(settings: AppSettings): AppSettings {
+  const apiProfiles = normalizeApiProfiles(settings.apiProfiles);
+  const activeProfile = apiProfiles.find((profile) => profile.id === settings.activeApiProfileId && profile.enabled) ?? apiProfiles.find((profile) => profile.enabled) ?? apiProfiles[0];
+  const activeModel = settings.activeModel && activeProfile.models.includes(settings.activeModel) ? settings.activeModel : activeProfile.selectedModel;
+  return {
+    ...settings,
+    apiProfiles: apiProfiles.map((profile) => profile.id === activeProfile.id ? { ...profile, selectedModel: activeModel } : profile),
+    activeApiProfileId: activeProfile.id,
+    activeModel
+  };
+}
 
 function defaultSettings(): AppSettings {
   return {
@@ -94,6 +188,9 @@ function defaultSettings(): AppSettings {
     storageProfiles: [],
     requestTimeoutSeconds: 300,
     apiBaseUrl: FIXED_API_BASE_URL,
+    apiProfiles: [defaultApiProfile()],
+    activeApiProfileId: "quya-openai-default",
+    activeModel: DEFAULT_OPENAI_MODEL,
     autoCheckUpdates: true,
     skippedUpdateVersion: "",
     proxyMode: "system",
@@ -175,20 +272,25 @@ function storageSecretsPath() {
   return path.join(app.getPath("userData"), "storage-secrets.json");
 }
 
+function apiProfileSecretsPath() {
+  return path.join(app.getPath("userData"), "api-profile-secrets.json");
+}
+
 async function readSettings(): Promise<AppSettings> {
   try {
     const text = await readFile(settingsPath(), "utf-8");
     const settings = { ...defaultSettings(), ...JSON.parse(text) };
     const proxySettings = normalizeProxySettings(settings, false);
-    return {
+    return ensureActiveApiSelection({
       ...settings,
       requestTimeoutSeconds: clampRequestTimeoutSeconds(settings.requestTimeoutSeconds),
       apiBaseUrl: normalizeApiBaseUrl(settings.apiBaseUrl),
+      apiProfiles: normalizeApiProfiles(settings.apiProfiles),
       autoCheckUpdates: settings.autoCheckUpdates !== false,
       skippedUpdateVersion: typeof settings.skippedUpdateVersion === "string" ? settings.skippedUpdateVersion : "",
       proxyMode: proxySettings.proxyMode,
       proxyUrl: proxySettings.proxyUrl
-    };
+    });
   } catch {
     return defaultSettings();
   }
@@ -196,9 +298,10 @@ async function readSettings(): Promise<AppSettings> {
 
 async function writeSettings(patch: Partial<AppSettings>) {
   const { apiBaseUrl: _apiBaseUrl, ...safePatch } = patch;
-  const settings = { ...(await readSettings()), ...safePatch, apiBaseUrl: FIXED_API_BASE_URL };
+  const settings = ensureActiveApiSelection({ ...(await readSettings()), ...safePatch, apiBaseUrl: FIXED_API_BASE_URL });
   settings.requestTimeoutSeconds = clampRequestTimeoutSeconds(settings.requestTimeoutSeconds);
   settings.apiBaseUrl = FIXED_API_BASE_URL;
+  settings.apiProfiles = normalizeApiProfiles(settings.apiProfiles);
   settings.autoCheckUpdates = settings.autoCheckUpdates !== false;
   settings.skippedUpdateVersion = typeof settings.skippedUpdateVersion === "string" ? settings.skippedUpdateVersion : "";
   const proxySettings = normalizeProxySettings(settings, true);
@@ -256,6 +359,33 @@ async function writeEncryptedApiKey(apiKey: string) {
   await writeFile(secretsPath(), JSON.stringify({ apiKey: encryptedApiKey.toString("base64") }, null, 2), "utf-8");
 }
 
+async function readApiProfileSecrets(): Promise<Record<string, string>> {
+  try {
+    return JSON.parse(await readFile(apiProfileSecretsPath(), "utf-8")) as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
+async function writeApiProfileSecret(profileId: string, secret: ApiProfileSecret) {
+  const secrets = await readApiProfileSecrets();
+  secrets[profileId] = encryptJson(secret);
+  await mkdir(app.getPath("userData"), { recursive: true });
+  await writeFile(apiProfileSecretsPath(), JSON.stringify(secrets, null, 2), "utf-8");
+}
+
+async function readApiProfileSecret(profileId: string): Promise<Partial<ApiProfileSecret>> {
+  const secrets = await readApiProfileSecrets();
+  return decryptJson<ApiProfileSecret>(secrets[profileId]) ?? {};
+}
+
+async function deleteApiProfileSecret(profileId: string) {
+  const secrets = await readApiProfileSecrets();
+  delete secrets[profileId];
+  await mkdir(app.getPath("userData"), { recursive: true });
+  await writeFile(apiProfileSecretsPath(), JSON.stringify(secrets, null, 2), "utf-8");
+}
+
 async function readStorageSecrets(): Promise<Record<string, string>> {
   try {
     return JSON.parse(await readFile(storageSecretsPath(), "utf-8")) as Record<string, string>;
@@ -289,8 +419,12 @@ async function readStorageSecret(profileId: string) {
   return decryptJson<StorageSecret>(secrets[profileId]) ?? {};
 }
 
-async function hasSavedApiKey() {
-  return Boolean(process.env.YUNQIAO_API_KEY || (await readEncryptedApiKey()));
+async function hasAnyApiKey(settings?: AppSettings) {
+  if (process.env.YUNQIAO_API_KEY || process.env.QUYA_API_KEY || process.env.GEMINI_API_KEY) return true;
+  const profileSecrets = await readApiProfileSecrets();
+  if (Object.keys(profileSecrets).length > 0) return true;
+  if (settings?.apiProfiles.some((profile) => profile.hasKey)) return true;
+  return Boolean(await readEncryptedApiKey());
 }
 
 function sanitizeName(name: string) {
@@ -910,12 +1044,13 @@ async function testHttpEndpoint(endpoint: string, settings?: Pick<AppSettings, "
 
 async function testApiConnection(settings: AppSettings) {
   const startedAt = Date.now();
-  const url = `${FIXED_API_BASE_URL}/v1/models`;
+  const profile = resolveRequestProfile(settings);
+  const url = profile.provider === "gemini" ? `${GEMINI_API_BASE_URL}/models` : `${FIXED_API_BASE_URL}/v1/models`;
   const proxy = await activeProxyResolution(url, settings);
   const response = await fetchWithTimeoutForMain(url, {
     method: "GET",
     headers: {
-      Authorization: `Bearer ${await getApiKey()}`,
+      Authorization: `Bearer ${await getApiKeyForProfile(profile)}`,
       Accept: "application/json"
     }
   }, settings.requestTimeoutSeconds * 1000, settings);
@@ -927,11 +1062,71 @@ async function testApiConnection(settings: AppSettings) {
     endpoint: url,
     durationMs: Date.now() - startedAt,
     bodyPreview: text.slice(0, 800),
+    provider: profile.provider,
+    model: profile.selectedModel,
     proxyMode: settings.proxyMode,
     proxyUrl: maskProxyUrl(proxy.proxyUrl),
     networkMode: proxy.label,
     proxyRule: proxy.rule,
     proxyWarning: proxy.warning
+  };
+}
+
+function normalizeModelId(value: string) {
+  return value.replace(/^models\//, "").trim();
+}
+
+function imageModelsFromOpenAiResponse(value: unknown) {
+  const data = value && typeof value === "object" && Array.isArray((value as { data?: unknown[] }).data)
+    ? (value as { data: unknown[] }).data
+    : [];
+  const models = data
+    .map((item) => item && typeof item === "object" && typeof (item as { id?: unknown }).id === "string" ? (item as { id: string }).id : "")
+    .map(normalizeModelId)
+    .filter((model) => /image|gpt-image/i.test(model));
+  return Array.from(new Set(models.length ? models : [DEFAULT_OPENAI_MODEL]));
+}
+
+function imageModelsFromGeminiResponse(value: unknown) {
+  const modelsValue = value && typeof value === "object" && Array.isArray((value as { models?: unknown[] }).models)
+    ? (value as { models: unknown[] }).models
+    : [];
+  const models = modelsValue
+    .map((item) => {
+      if (!item || typeof item !== "object") return "";
+      const record = item as Record<string, unknown>;
+      return typeof record.name === "string" ? record.name : typeof record.model === "string" ? record.model : "";
+    })
+    .map(normalizeModelId)
+    .filter((model) => /image/i.test(model));
+  return Array.from(new Set([...models, ...FALLBACK_GEMINI_IMAGE_MODELS]));
+}
+
+async function fetchApiModels(payload: { provider?: ImageProvider; apiKey?: string; profileId?: string }, settings: AppSettings) {
+  const savedProfile = payload.profileId ? settings.apiProfiles.find((item) => item.id === payload.profileId) : undefined;
+  const provider = normalizeProvider(payload.provider ?? savedProfile?.provider);
+  const profile = savedProfile ? { ...savedProfile, provider } : normalizeApiProfile({ provider });
+  const inlineKey = payload.apiKey?.trim();
+  const apiKey = inlineKey || await getApiKeyForProfile({ ...profile, provider });
+  const url = provider === "gemini" ? `${GEMINI_API_BASE_URL}/models` : `${FIXED_API_BASE_URL}/v1/models`;
+  const startedAt = Date.now();
+  const response = await fetchWithTimeoutForMain(url, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      Accept: "application/json"
+    }
+  }, settings.requestTimeoutSeconds * 1000, settings);
+  const json = await response.json().catch(() => null) as unknown;
+  if (!response.ok) {
+    throw new Error(`模型列表读取失败：HTTP ${response.status}`);
+  }
+  return {
+    ok: true,
+    provider,
+    endpoint: url,
+    durationMs: Date.now() - startedAt,
+    models: provider === "gemini" ? imageModelsFromGeminiResponse(json) : imageModelsFromOpenAiResponse(json)
   };
 }
 
@@ -1003,12 +1198,39 @@ function createWindow() {
   }
 }
 
-async function getApiKey() {
-  const envKey = process.env.YUNQIAO_API_KEY;
-  if (envKey) return envKey;
-  const stored = await readEncryptedApiKey();
-  if (!stored) throw new Error("API Key 未配置");
-  return safeStorage.decryptString(stored);
+function resolveRequestProfile(settings: AppSettings, request?: Pick<ImageGenerationRequest, "profileId" | "model" | "provider">) {
+  const requestedProfile = request?.profileId
+    ? settings.apiProfiles.find((profile) => profile.id === request.profileId)
+    : undefined;
+  const activeProfile = settings.apiProfiles.find((profile) => profile.id === settings.activeApiProfileId)
+    ?? settings.apiProfiles.find((profile) => profile.enabled)
+    ?? settings.apiProfiles[0]
+    ?? defaultApiProfile();
+  const profile = requestedProfile ?? activeProfile;
+  const requestedModel = typeof request?.model === "string" && request.model.trim() ? request.model.trim() : "";
+  const model = requestedModel || settings.activeModel || profile.selectedModel || defaultModelsForProvider(profile.provider)[0];
+  return {
+    ...profile,
+    provider: request?.provider ?? profile.provider,
+    selectedModel: model,
+    models: profile.models.includes(model) ? profile.models : [model, ...profile.models]
+  };
+}
+
+async function getApiKeyForProfile(profile: PersistedApiProfile) {
+  if (profile.provider === "gemini" && process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
+  if (profile.provider === "openai" && process.env.QUYA_API_KEY) return process.env.QUYA_API_KEY;
+  if (profile.provider === "openai" && process.env.YUNQIAO_API_KEY) return process.env.YUNQIAO_API_KEY;
+
+  const profileSecret = await readApiProfileSecret(profile.id);
+  if (profileSecret.apiKey) return profileSecret.apiKey;
+
+  if (profile.provider === "openai") {
+    const stored = await readEncryptedApiKey();
+    if (stored) return safeStorage.decryptString(stored);
+  }
+
+  throw new Error(`${profile.name || profile.selectedModel} 的 API Key 未配置`);
 }
 
 function normalizeExternalUrl(url: string) {
@@ -1021,8 +1243,103 @@ function normalizeExternalUrl(url: string) {
 
 ipcMain.handle("settings:set-api-key", async (_event, apiKey: string) => {
   await writeEncryptedApiKey(apiKey);
+  const settings = await readSettings();
+  const activeProfile = resolveRequestProfile(settings);
+  await writeApiProfileSecret(activeProfile.id, { apiKey });
+  await writeSettings({
+    apiProfiles: settings.apiProfiles.map((profile) => profile.id === activeProfile.id ? { ...profile, hasKey: true, updatedAt: Date.now() } : profile)
+  });
   return { ok: true };
 });
+
+ipcMain.handle("settings:save-api-profile", async (_event, payload: {
+  id?: string;
+  name?: string;
+  provider?: ImageProvider;
+  apiKey?: string;
+  selectedModel?: string;
+  models?: string[];
+  enabled?: boolean;
+}) => {
+  const settings = await readSettings();
+  const provider = normalizeProvider(payload.provider);
+  const existing = payload.id ? settings.apiProfiles.find((profile) => profile.id === payload.id) : undefined;
+  const now = Date.now();
+  const selectedModel = payload.selectedModel?.trim() || existing?.selectedModel || defaultModelsForProvider(provider)[0];
+  const models = Array.from(new Set([
+    selectedModel,
+    ...(payload.models ?? existing?.models ?? defaultModelsForProvider(provider))
+  ].map(String).map((item) => item.trim()).filter(Boolean)));
+  const profile = normalizeApiProfile({
+    ...existing,
+    id: existing?.id ?? `api-profile-${now}`,
+    name: payload.name?.trim() || existing?.name || (provider === "gemini" ? "Gemini 图像" : "quya GPT 图像"),
+    provider,
+    selectedModel,
+    models,
+    enabled: payload.enabled ?? existing?.enabled ?? true,
+    hasKey: Boolean(payload.apiKey?.trim()) || existing?.hasKey,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now
+  });
+
+  if (payload.apiKey?.trim()) {
+    await writeApiProfileSecret(profile.id, { apiKey: payload.apiKey.trim() });
+    profile.hasKey = true;
+  }
+
+  const apiProfiles = existing
+    ? settings.apiProfiles.map((item) => item.id === profile.id ? profile : item)
+    : [...settings.apiProfiles, profile];
+  const next = await writeSettings({
+    apiProfiles,
+    activeApiProfileId: profile.id,
+    activeModel: profile.selectedModel
+  });
+  return {
+    ...sanitizeSettings(next),
+    hasApiKey: await hasAnyApiKey(next)
+  };
+});
+
+ipcMain.handle("settings:delete-api-profile", async (_event, profileId: string) => {
+  const settings = await readSettings();
+  const remaining = settings.apiProfiles.filter((profile) => profile.id !== profileId);
+  await deleteApiProfileSecret(profileId);
+  const fallback = remaining[0] ?? defaultApiProfile();
+  const next = await writeSettings({
+    apiProfiles: remaining.length ? remaining : [fallback],
+    activeApiProfileId: fallback.id,
+    activeModel: fallback.selectedModel
+  });
+  return {
+    ...sanitizeSettings(next),
+    hasApiKey: await hasAnyApiKey(next)
+  };
+});
+
+ipcMain.handle("settings:select-api-model", async (_event, payload: { profileId: string; model: string }) => {
+  const settings = await readSettings();
+  const profile = settings.apiProfiles.find((item) => item.id === payload.profileId);
+  if (!profile) throw new Error("模型配置不存在");
+  const model = payload.model.trim() || profile.selectedModel;
+  const next = await writeSettings({
+    activeApiProfileId: profile.id,
+    activeModel: model,
+    apiProfiles: settings.apiProfiles.map((item) => item.id === profile.id ? {
+      ...item,
+      selectedModel: model,
+      models: item.models.includes(model) ? item.models : [model, ...item.models],
+      updatedAt: Date.now()
+    } : item)
+  });
+  return {
+    ...sanitizeSettings(next),
+    hasApiKey: await hasAnyApiKey(next)
+  };
+});
+
+ipcMain.handle("api:fetch-models", async (_event, payload: { provider?: ImageProvider; apiKey?: string; profileId?: string }) => fetchApiModels(payload, await readSettings()));
 
 ipcMain.handle("shell:open-external", async (_event, url: string) => {
   const target = normalizeExternalUrl(url);
@@ -1030,10 +1347,16 @@ ipcMain.handle("shell:open-external", async (_event, url: string) => {
   return { ok: true, url: target };
 });
 
-ipcMain.handle("app:get-settings", async () => ({
-  ...sanitizeSettings(await readSettings()),
-  hasApiKey: await hasSavedApiKey()
-}));
+ipcMain.handle("app:get-settings", async () => {
+  const settings = await readSettings();
+  const hasApiKey = await hasAnyApiKey(settings);
+  const sanitized = sanitizeSettings(settings);
+  return {
+    ...sanitized,
+    apiProfiles: sanitized.apiProfiles.map((profile) => profile.id === "quya-openai-default" ? { ...profile, hasKey: profile.hasKey || hasApiKey } : profile),
+    hasApiKey
+  };
+});
 
 ipcMain.handle("app:check-update", async () => {
   const settings = await readSettings();
@@ -1382,12 +1705,26 @@ ipcMain.handle("storage:test", async (_event, payload: { type: string; endpoint?
 
 ipcMain.handle("image:generate", async (_event, request: ImageGenerationRequest) => {
   const settings = await readSettings();
-  return createImageGeneration(request, await getApiKey(), settings.apiBaseUrl, settings.requestTimeoutSeconds * 1000, createImageApiFetch(settings));
+  const profile = resolveRequestProfile(settings, request);
+  return createImageGeneration(
+    { ...request, provider: profile.provider, model: profile.selectedModel, profileId: profile.id },
+    await getApiKeyForProfile(profile),
+    profile.apiBaseUrl,
+    settings.requestTimeoutSeconds * 1000,
+    createImageApiFetch(settings)
+  );
 });
 
 ipcMain.handle("image:edit", async (_event, request: ImageEditRequest) => {
   const settings = await readSettings();
-  return createImageEdit(request, await getApiKey(), settings.apiBaseUrl, settings.requestTimeoutSeconds * 1000, createImageApiFetch(settings));
+  const profile = resolveRequestProfile(settings, request);
+  return createImageEdit(
+    { ...request, provider: profile.provider, model: profile.selectedModel, profileId: profile.id },
+    await getApiKeyForProfile(profile),
+    profile.apiBaseUrl,
+    settings.requestTimeoutSeconds * 1000,
+    createImageApiFetch(settings)
+  );
 });
 
 void app.whenReady().then(createWindow);

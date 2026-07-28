@@ -165,9 +165,39 @@ input::placeholder {
   margin-left: auto;
 }
 
-.modelButton,
 .quotaButton {
   background: #172033;
+}
+
+.modelSelectWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 220px;
+  max-width: 300px;
+  height: 38px;
+  color: #eaf2ff;
+  background: #172033;
+  border: 1px solid #2d3a55;
+  border-radius: 8px;
+}
+
+.modelSelectWrap svg {
+  position: absolute;
+  right: 10px;
+  pointer-events: none;
+  color: #9fb0c8;
+}
+
+.modelSelect {
+  width: 100%;
+  height: 100%;
+  padding: 0 30px 0 12px;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  appearance: none;
 }
 
 .siteButton {
@@ -1133,6 +1163,63 @@ label {
   height: 1px;
   margin: 14px 0;
   background: #2a364d;
+}
+
+.apiProfileEditor {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+
+.apiProfileList {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.apiProfileRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  background: #101a2a;
+  border: 1px solid #2b3a55;
+  border-radius: 8px;
+}
+
+.apiProfileRow.active {
+  background: #14223a;
+  border-color: #4f8cff;
+}
+
+.apiProfileRow strong,
+.apiProfileRow span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.apiProfileRow strong {
+  color: #f4f8ff;
+  font-size: 13px;
+}
+
+.apiProfileRow span {
+  margin-top: 3px;
+  color: #91a4bf;
+  font-size: 12px;
+}
+
+.compactButtons {
+  flex-wrap: nowrap;
+}
+
+.dangerButton {
+  color: #ffd6d6;
+  border-color: #6e2f3a;
 }
 
 .proxySettingsBlock {

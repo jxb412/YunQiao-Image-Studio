@@ -4,6 +4,10 @@ import type { ImageEditRequest, ImageGenerationRequest } from "../shared/imageAp
 
 contextBridge.exposeInMainWorld("yunqiao", {
   setApiKey: (apiKey: string) => ipcRenderer.invoke("settings:set-api-key", apiKey),
+  saveApiProfile: (profile: unknown) => ipcRenderer.invoke("settings:save-api-profile", profile),
+  deleteApiProfile: (profileId: string) => ipcRenderer.invoke("settings:delete-api-profile", profileId),
+  selectApiModel: (payload: { profileId: string; model: string }) => ipcRenderer.invoke("settings:select-api-model", payload),
+  fetchApiModels: (payload: { provider?: string; apiKey?: string; profileId?: string }) => ipcRenderer.invoke("api:fetch-models", payload),
   generateImage: (request: ImageGenerationRequest) => ipcRenderer.invoke("image:generate", request),
   editImage: (request: ImageEditRequest) => ipcRenderer.invoke("image:edit", request),
   testApi: () => ipcRenderer.invoke("api:test"),

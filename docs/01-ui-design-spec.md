@@ -108,7 +108,7 @@ linear-gradient(135deg, #3B82F6 0%, #8B5CF6 100%)
 
 - Logo
 - 产品名: 云桥Pro AI绘图
-- 版本标签: GPT-Image-2 商用专业版
+- 版本标签: GPT/Gemini 商用专业版
 
 中间:
 
@@ -116,7 +116,7 @@ linear-gradient(135deg, #3B82F6 0%, #8B5CF6 100%)
 
 右侧:
 
-- 模型显示: `gpt-image-2`
+- 模型选择器: 显示当前 `gpt-image-2` 或 Gemini 图像模型
 - 质量档位选择
 - 云同步状态
 - API 状态

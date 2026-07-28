@@ -5,21 +5,24 @@
 
 ## 1. 目标
 
-本规范用于把云桥Pro 从 PRD 变成可开发的桌面应用。所有 API 参数以 OpenAI GPT Image 官方文档为基准，客户端固定连接 `https://api.0029.org`。
+本规范用于把云桥Pro 从 PRD 变成可开发的桌面应用。GPT 图像参数以 OpenAI GPT Image 官方文档为基准，客户端连接 `https://api.quya.org`；Gemini 图像模型走 quya.org 的 Gemini 原生兼容接口，并使用独立参数区。
 
 ## 2. 服务配置
 
 ```ts
 export const IMAGE_API_CONFIG = {
-  defaultBaseURL: "https://api.0029.org",
+  defaultBaseURL: "https://api.quya.org",
   model: "gpt-image-2",
+  geminiModel: "gemini-3.1-flash-image",
   generationPath: "/v1/images/generations",
   editPath: "/v1/images/edits",
+  geminiModelsPath: "/v1beta/models",
+  geminiGeneratePath: "/v1beta/models/{model}:generateContent",
   timeoutMs: 300_000,
 };
 ```
 
-应用固定 API Base URL 为 `https://api.0029.org`，设置页仅展示地址并提供 API Key 保存、超时时间和连通性测试。
+应用支持多组模型配置：OpenAI 兼容图像模型和 Gemini 图像模型都固定使用 `https://api.quya.org`。设置页提供 Key 保存、模型列表读取、顶部模型选择、超时时间和连通性测试。
 
 密钥来源:
 
@@ -41,7 +44,7 @@ Authorization: Bearer <api_key>
 端点:
 
 ```http
-POST https://api.0029.org/v1/images/generations
+POST https://api.quya.org/v1/images/generations
 Content-Type: application/json
 ```
 
@@ -95,7 +98,7 @@ Content-Type: application/json
 | 2K 横图 | `2048x1152` | 影视概念和横版封面 |
 | 2K 竖图 | `1152x2048` | 竖版海报和高清封面 |
 
-注意: 若 `api.0029.org` 的代理暂不支持任意尺寸，需要在适配层降级到 `1024x1024`、`1536x1024`、`1024x1536`。
+注意: 若 `api.quya.org` 的代理暂不支持任意尺寸，需要在适配层降级到 `1024x1024`、`1536x1024`、`1024x1536`。
 
 ## 4. 图生图和编辑接口
 
@@ -104,7 +107,7 @@ Content-Type: application/json
 端点:
 
 ```http
-POST https://api.0029.org/v1/images/edits
+POST https://api.quya.org/v1/images/edits
 ```
 
 推荐使用 multipart/form-data 发送本地文件:
@@ -167,6 +170,59 @@ output_format=png
 - `style`
 - `response_format`
 - `input_fidelity`。默认不暴露、不主动传。`gpt-image-2` 图片输入按官方模型摘要已默认高保真；若目标代理服务实测支持，可作为开发者实验字段透传。
+
+## 4.1 Gemini 图像接口
+
+Gemini 图像模型使用独立模型配置，不复用 GPT 的 `quality`、`background`、`moderation` 参数。
+
+推荐模型:
+
+```text
+gemini-3.1-flash-image
+```
+
+客户端参数:
+
+| UI 名称 | 请求含义 | 说明 |
+| --- | --- | --- |
+| Gemini 输出大小 | `generationConfig.imageConfig.imageSize` | 当前 UI 限制为 `1K` / `2K` |
+| Gemini 画幅比例 | `generationConfig.imageConfig.aspectRatio` | 支持 `1:1`、`2:3`、`3:2`、`9:16`、`16:9` 等 |
+| 输出格式 | 返回 `inlineData.mimeType` | 客户端以接口返回 MIME 为准保存和展示 |
+
+端点:
+
+```http
+GET https://api.quya.org/v1beta/models
+POST https://api.quya.org/v1beta/models/gemini-3.1-flash-image:generateContent
+Authorization: Bearer <api_key>
+Content-Type: application/json
+```
+
+请求体:
+
+```json
+{
+  "contents": [
+    {
+      "role": "user",
+      "parts": [
+        {
+          "text": "生成一张年轻潮流头像，干净背景，商业插画质感。"
+        }
+      ]
+    }
+  ],
+  "generationConfig": {
+    "responseModalities": ["TEXT", "IMAGE"],
+    "imageConfig": {
+      "aspectRatio": "1:1",
+      "imageSize": "1K"
+    }
+  }
+}
+```
+
+文生图和图生图都通过同一 Gemini 图像适配器发送。图生图会把本地图片转为 base64 图像输入，局部遮罩会作为额外参考图并在提示词中说明遮罩用途。
 
 ## 5. Prompt 合成器
 

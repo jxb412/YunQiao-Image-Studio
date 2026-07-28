@@ -2,8 +2,8 @@
 
 版本: v1.0  
 日期: 2026-06-28  
-模型: `gpt-image-2`  
-固定 API Base URL: `https://api.0029.org`
+模型: `gpt-image-2` / `gemini-3.1-flash-image`
+固定 API Base URL: `https://api.quya.org`
 
 ## 1. 产品定位
 
@@ -15,16 +15,16 @@
 
 豆包原文中的四分支模型需要调整为真实可开发形态:
 
-1. 模型只有一个主模型: `gpt-image-2`。
-2. “极速草图、高清商业、影视写实、二次元漫画”不作为模型 ID，而作为产品预设。
+1. 主图像模型支持 `gpt-image-2` 和 Gemini 图像模型，默认使用 `gpt-image-2`，用户可在顶部切换已保存的模型配置。
+2. “极速草图、高清商业、影视写实、二次元漫画”优先作为产品预设，实际请求参数按当前模型分别映射。
 3. 预设通过 `quality`、`size`、`output_format`、行业提示词、后处理参数组合实现。
 4. `负面提示词`不是独立 API 参数，需要在最终 prompt 中拼接为“避免出现...”约束。
 5. `创意自由度、锐化、饱和度、景深、电影镜头`不是官方独立参数，应分为两类:
    - 镜头、景深、风格、构图: 写入 prompt。
    - 锐化、饱和度、压缩、格式: 应用层后处理或导出层控制。
 6. 图生图相似度没有单独 `strength` 参数。云桥Pro 内部把相似度映射为提示词强度、参考图保真工作流、局部 mask 范围，而不是传一个不存在的 API 字段。
-7. `gpt-image-2` 的 GPT 图像模型默认返回 base64 图片，不返回长期 URL。云桥Pro 的公网 URL 必须由软件上传到 OSS/COS/OBS/MinIO/FTP/SFTP 后生成。
-8. `gpt-image-2` 当前不支持 `background: "transparent"`。透明底素材应作为后处理能力实现，例如本地抠图、第三方背景移除、或后续接入专用抠图模型。
+7. GPT 与 Gemini 图像模型默认返回 base64 图片，不返回长期 URL。云桥Pro 的公网 URL 必须由软件上传到 OSS/COS/OBS/MinIO/FTP/SFTP 后生成。
+8. `gpt-image-2` 当前不支持 `background: "transparent"`；Gemini 不复用 GPT 的 `quality`、`background`、`moderation` 参数。透明底素材应作为后处理能力实现，例如本地抠图、第三方背景移除、或后续接入专用抠图模型。
 
 ## 3. 目标用户
 
@@ -163,7 +163,7 @@
 
 - Logo 与标题: 云桥Pro AI绘图 · GPT-Image-2 商用专业版
 - 搜索框: 搜索模板/关键词/历史作品
-- 当前模型: `gpt-image-2`
+- 当前模型: 顶部模型选择器显示已保存的 `gpt-image-2` 或 Gemini 图像模型
 - 质量档位: 草稿/标准/精修/自动
 - 云同步状态
 - 算力/额度
@@ -284,7 +284,7 @@
 - `negative_prompt`
 - `steps`
 - `sampler`
-- `input_fidelity`。默认不在 UI 暴露、不主动传。官方模型摘要说明 `gpt-image-2` 对图片输入已默认高保真；若 `api.0029.org` 实测兼容该字段，可在开发者实验开关中启用。
+- `input_fidelity`。默认不在 UI 暴露、不主动传。官方模型摘要说明 `gpt-image-2` 对图片输入已默认高保真；若 `api.quya.org` 实测兼容该字段，可在开发者实验开关中启用。
 
 相似度 UI 设计:
 
@@ -466,10 +466,10 @@ Excel 字段建议:
 API Base URL 默认值:
 
 ```text
-https://api.0029.org
+https://api.quya.org
 ```
 
-客户端固定使用 `https://api.0029.org`，设置页不提供自定义 API 地址入口。
+客户端固定使用 `https://api.quya.org`，设置页不提供自定义 API 地址入口；GPT 使用 `/v1/images/*`，Gemini 使用 `/v1beta/models/*`。
 
 密钥处理:
 
@@ -523,7 +523,7 @@ https://api.0029.org
 基础生成:
 
 - 用户能配置 API Key。
-- 用户能使用固定 API Base URL `https://api.0029.org` 发起生图请求。
+- 用户能使用固定 API Base URL `https://api.quya.org` 发起生图请求。
 - 单次默认生成 1 张图片；多图数量参数暂不传递，避免中转接口和官方接口返回 `tools[0].n` 错误。
 - 图片能保存到本地作品库。
 

@@ -1,4 +1,4 @@
-# 云桥Pro v0.1.17 使用说明
+# 云桥Pro v0.1.18 使用说明
 
 ## 1. 客户端下载
 
@@ -8,11 +8,11 @@ GitHub Release 页面：
 https://github.com/jxb412/YunQiao-Image-Studio/releases
 ```
 
-v0.1.17 提供三个客户端：
+v0.1.18 提供三个客户端：
 
-- Windows x64：`YunQiao-Image-Studio-0.1.17-win-x64-portable.exe`
-- macOS Intel x64：`YunQiao-Image-Studio-0.1.17-mac-x64.dmg`
-- macOS Apple Silicon arm64：`YunQiao-Image-Studio-0.1.17-mac-arm64.dmg`
+- Windows x64：`YunQiao-Image-Studio-0.1.18-win-x64-portable.exe`
+- macOS Intel x64：`YunQiao-Image-Studio-0.1.18-mac-x64.dmg`
+- macOS Apple Silicon arm64：`YunQiao-Image-Studio-0.1.18-mac-arm64.dmg`
 
 Windows 版本是便携版，下载后双击 exe 即可运行，不需要安装 Node.js、npm 或 Electron。
 
@@ -35,23 +35,26 @@ Windows 已保护你的电脑
 
 ## 2. API 设置
 
-应用固定使用：
+GPT 图像服务使用：
 
 ```text
-https://api.0029.org
+quya.org
 ```
 
-用户需要先到 `0029.org` 购买套餐并生成秘钥，然后在 `API与云端存储设置` 页面保存 API Key。
+用户需要先到 `quya.org` 购买套餐并生成 Key，然后在 `API与云端存储设置` 页面保存模型配置。
+
+如果使用 Gemini 图像模型，请在同一页面选择 `Gemini 图像`，填写 quya.org 分配的 Gemini Key，点击 `获取模型` 后选择 `gemini-3.1-flash-image` 或其他可用图像模型。
 
 设置页支持：
 
-- 保存 API Key 到本机安全存储。
+- 固定服务地址为 `quya.org`，不提供自定义 API URL 输入。
+- 保存多组 API Key 到本机安全存储。
+- 每组 Key 绑定服务类型、配置名称和选中的图像模型。
+- 顶部工具栏选择当前生图模型，文生图、图生图、AI 修图和批量工坊都会使用该模型。
 - 请求超时时间设置，默认 300 秒，最高 600 秒。
 - 程序代理设置，默认勾选跟随系统代理，取消后可选择单独 HTTP/HTTPS 代理或直连。
 - 代理网络测试，显示 HTTP 状态、耗时、系统代理规则、直连/代理模式和返回摘要。
-- 测试 API 连通性，显示 HTTP 状态、耗时、接口返回摘要和错误信息。
-
-API Base URL 不提供自定义修改入口。
+- 测试当前模型连通性，显示 HTTP 状态、耗时、接口返回摘要和错误信息。
 
 ### 网络代理设置
 

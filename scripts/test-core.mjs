@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { buildImageRequestBodyForTest } from "../src/shared/imageApi.ts";
+import { buildGeminiRequestBodyForTest, buildImageRequestBodyForTest, createImageGeneration } from "../src/shared/imageApi.ts";
 import { validateGptImage2Size } from "../src/shared/imageSize.ts";
 import { composePrompt } from "../src/shared/promptComposer.ts";
 
@@ -49,5 +49,57 @@ const body = buildImageRequestBodyForTest({
 assert.equal(body.model, "gpt-image-2");
 assert.equal(body.size, "1024x1024");
 assert.equal(Object.hasOwn(body, "n"), false);
+
+const geminiBody = await buildGeminiRequestBodyForTest({
+  provider: "gemini",
+  model: "gemini-3.1-flash-image",
+  prompt: "测试 Gemini 生图",
+  size: "1536x1024",
+  geminiImageSize: "2K",
+  geminiAspectRatio: "3:2",
+  output_format: "png"
+});
+assert.equal(geminiBody.contents[0].role, "user");
+assert.deepEqual(geminiBody.contents[0].parts[0], { text: "测试 Gemini 生图" });
+assert.deepEqual(geminiBody.generationConfig.responseModalities, ["TEXT", "IMAGE"]);
+assert.equal(geminiBody.generationConfig.imageConfig.aspectRatio, "3:2");
+assert.equal(geminiBody.generationConfig.imageConfig.imageSize, "2K");
+
+const geminiResult = await createImageGeneration(
+  {
+    provider: "gemini",
+    model: "models/gemini-3.1-flash-image",
+    prompt: "测试 Gemini 封装",
+    size: "1024x1024",
+    geminiImageSize: "1K",
+    geminiAspectRatio: "1:1"
+  },
+  "test-key",
+  "https://api.quya.org",
+  1000,
+  async (url, init) => {
+    assert.equal(url, "https://api.quya.org/v1beta/models/gemini-3.1-flash-image:generateContent");
+    assert.equal(init.headers.Authorization, "Bearer test-key");
+    const requestBody = JSON.parse(init.body);
+    assert.equal(requestBody.generationConfig.imageConfig.aspectRatio, "1:1");
+    assert.equal(requestBody.generationConfig.imageConfig.imageSize, "1K");
+    return new Response(JSON.stringify({
+      candidates: [
+        {
+          content: {
+            parts: [
+              { inlineData: { mimeType: "image/png", data: "QUJD" } },
+              { text: "ok" }
+            ]
+          }
+        }
+      ]
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+  }
+);
+assert.equal(geminiResult.provider, "gemini");
+assert.equal(geminiResult.model, "gemini-3.1-flash-image");
+assert.equal(geminiResult.data[0].b64_json, "QUJD");
+assert.equal(geminiResult.data[0].mime_type, "image/png");
 
 console.log("core tests passed");
