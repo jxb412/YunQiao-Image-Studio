@@ -44,6 +44,32 @@ jobs:
               "${url}"
           done < assets.tsv
 
+      - name: Prepare FTP root update manifest
+        env:
+          UPDATE_PUBLIC_BASE_URL: ${{ vars.UPDATE_PUBLIC_BASE_URL }}
+        run: |
+          set -euo pipefail
+          PUBLIC_BASE_URL="${UPDATE_PUBLIC_BASE_URL:-https://down.haowucm.cn}"
+          export PUBLIC_BASE_URL
+          python3 - <<'PY'
+          import json
+          import os
+          from urllib.parse import quote
+
+          public_base_url = os.environ.get("PUBLIC_BASE_URL", "https://down.haowucm.cn").rstrip("/")
+          with open("release-assets/latest.json", "r", encoding="utf-8") as file:
+              manifest = json.load(file)
+
+          for item in manifest.get("downloads", {}).values():
+              filename = item.get("filename")
+              if filename:
+                  item["url"] = f"{public_base_url}/{quote(filename)}"
+
+          with open("release-assets/latest-ftp-root.json", "w", encoding="utf-8") as file:
+              json.dump(manifest, file, ensure_ascii=False, indent=2)
+              file.write("\n")
+          PY
+
       - name: Upload release assets to FTP
         env:
           FTP_HOST: ${{ secrets.UPDATE_FTP_HOST }}
@@ -73,7 +99,7 @@ jobs:
           cd /
           mput release-assets/*.exe
           mput release-assets/*.dmg
-          put release-assets/latest.json -o latest-${TAG}.json
+          put release-assets/latest-ftp-root.json -o latest-${TAG}.json
           bye
           EOF
 
@@ -84,7 +110,7 @@ jobs:
           set net:timeout 60
           cd /
           rm -f latest.json
-          put release-assets/latest.json -o latest.json
+          put release-assets/latest-ftp-root.json -o latest.json
           bye
           EOF
 
@@ -108,7 +134,7 @@ jobs:
           cd yunqiao/releases/${TAG}
           mput release-assets/*
           cd /yunqiao
-          put release-assets/latest.json -o latest-${TAG}.json
+          put release-assets/latest-ftp-root.json -o latest-${TAG}.json
           bye
           EOF
 
@@ -121,6 +147,6 @@ jobs:
           cd public_html
           mput release-assets/*.exe
           mput release-assets/*.dmg
-          put release-assets/latest.json -o latest-${TAG}.json
+          put release-assets/latest-ftp-root.json -o latest-${TAG}.json
           bye
           EOF
