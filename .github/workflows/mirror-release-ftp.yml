@@ -1,0 +1,79 @@
+name: Mirror Release FTP
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to mirror, for example v0.1.18"
+        required: true
+        default: "v0.1.18"
+
+jobs:
+  mirror-ftp:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          curl -fsSL \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "User-Agent: yunqiao-release-mirror" \
+            "https://api.github.com/repos/${REPO}/releases/tags/${TAG}" > release.json
+
+          python3 - <<'PY' > assets.tsv
+          import json
+          data = json.load(open("release.json", "r", encoding="utf-8"))
+          for asset in data.get("assets", []):
+              print(f"{asset['name']}\t{asset['browser_download_url']}")
+          PY
+
+          while IFS=$'\t' read -r name url; do
+            [ -n "${name}" ] || continue
+            echo "Downloading ${name}"
+            curl -fL --retry 8 --retry-delay 3 --connect-timeout 30 \
+              -H "User-Agent: yunqiao-release-mirror" \
+              -o "release-assets/${name}" \
+              "${url}"
+          done < assets.tsv
+
+      - name: Upload release assets to FTP
+        env:
+          FTP_HOST: ${{ secrets.UPDATE_FTP_HOST }}
+          FTP_PORT: ${{ secrets.UPDATE_FTP_PORT }}
+          FTP_USER: ${{ secrets.UPDATE_FTP_USER }}
+          FTP_PASSWORD: ${{ secrets.UPDATE_FTP_PASSWORD }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ -z "${FTP_HOST:-}" ] || [ -z "${FTP_USER:-}" ] || [ -z "${FTP_PASSWORD:-}" ]; then
+            echo "FTP secrets are not configured."
+            exit 1
+          fi
+          FTP_PORT="${FTP_PORT:-21}"
+          sudo apt-get update
+          sudo apt-get install -y lftp
+
+          lftp -u "${FTP_USER},${FTP_PASSWORD}" -p "${FTP_PORT}" "${FTP_HOST}" <<EOF
+          set ftp:ssl-allow no
+          set net:max-retries 3
+          set net:timeout 30
+          mkdir -p releases/${TAG}
+          cd releases/${TAG}
+          mput release-assets/*
+          cd /
+          put release-assets/latest.json -o latest.json
+          mkdir -p yunqiao/releases/${TAG}
+          cd yunqiao/releases/${TAG}
+          mput release-assets/*
+          cd /yunqiao
+          put release-assets/latest.json -o latest.json
+          bye
+          EOF

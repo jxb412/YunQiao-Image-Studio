@@ -160,17 +160,16 @@ YunQiao-Image-Studio-0.1.18-mac-arm64.dmg
 3. 所有 job 运行 `npm run lint`、`npm run typecheck`、`npm test`、`npm run build`。
 4. 构建产物上传到 GitHub Release。
 5. 生成带渠道、最低支持版本、文件大小和 SHA256 的发布清单。
-6. 如果配置了服务器 Secret，自动把三个客户端和发布清单上传到下载站目录。
+6. 可使用 `Mirror Release FTP` workflow 把三个客户端和发布清单同步到下载站目录。
 
-GitHub Actions 自动上传需要配置：
+FTP 镜像 workflow 需要配置：
 
-- Secret `UPDATE_SSH_HOST`
-- Secret `UPDATE_SSH_PORT`
-- Secret `UPDATE_SSH_USER`
-- Secret `UPDATE_SSH_PASSWORD`
-- Secret `UPDATE_SSH_REMOTE_ROOT`
+- Secret `UPDATE_FTP_HOST`
+- Secret `UPDATE_FTP_PORT`
+- Secret `UPDATE_FTP_USER`
+- Secret `UPDATE_FTP_PASSWORD`
 
-不要把服务器账号密码写入源码、README 或 workflow。
+不要把服务器账号密码写入源码、README 或 workflow。发布完成后可在 GitHub Actions 手动运行 `Mirror Release FTP`，输入要同步的 tag，例如 `v0.1.18`。
 
 发布新版本建议流程：
 

@@ -2,6 +2,7 @@ node_modules/
 dist/
 out/
 release/
+release-assets/
 .env
 .env.*
 !.env.example
