@@ -116,7 +116,7 @@ linear-gradient(135deg, #3B82F6 0%, #8B5CF6 100%)
 
 右侧:
 
-- 模型选择器: 显示当前 `gpt-image-2` 或 Gemini 图像模型
+- 模型选择器: 显示当前 GPT 图像模型（`gpt-image-2`、`gpt-image-2.5-flare`、`gpt-image-2.5-sunburst`）或 Gemini 图像模型
 - 质量档位选择
 - 云同步状态
 - API 状态

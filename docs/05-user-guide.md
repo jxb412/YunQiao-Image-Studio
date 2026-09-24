@@ -45,6 +45,8 @@ quya.org
 
 如果使用 Gemini 图像模型，请在同一页面选择 `Gemini 图像`，填写 quya.org 分配的 Gemini Key，点击 `获取模型` 后选择 `gemini-3.1-flash-image` 或其他可用图像模型。
 
+GPT 图像配置默认提供 `gpt-image-2`、`gpt-image-2.5-flare` 和 `gpt-image-2.5-sunburst`。三者都支持文生图、图生图、局部重绘和 AI 修图，顶部模型选择器切换后，后续请求会使用对应模型。
+
 设置页支持：
 
 - 固定服务地址为 `quya.org`，不提供自定义 API URL 输入。

@@ -2,7 +2,7 @@
 
 版本: v1.0  
 日期: 2026-06-28  
-适配模型: `gpt-image-2`
+适配模型: GPT 图像模型（默认 `gpt-image-2`，支持 `gpt-image-2.5-flare` 和 `gpt-image-2.5-sunburst`）
 
 ## 1. 使用原则
 

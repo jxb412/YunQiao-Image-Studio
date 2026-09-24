@@ -44,6 +44,7 @@ import { createRoot } from "react-dom/client";
 
 import { COMMON_IMAGE_SIZES, makeImageSize, validateGptImage2Size, type ImageSizeValue } from "../../shared/imageSize";
 import type { GeminiAspectRatio, GeminiImageSize, ImageProvider } from "../../shared/imageApiTypes";
+import { DEFAULT_OPENAI_MODEL, OPENAI_IMAGE_MODELS } from "../../shared/imageModels";
 import "./styles.css";
 
 type NavItem = {
@@ -398,7 +399,6 @@ const navItems: NavItem[] = [
   { label: "API与云端存储设置", icon: CloudCog, group: "system" }
 ];
 
-const DEFAULT_OPENAI_MODEL = "gpt-image-2";
 const DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-image";
 const GEMINI_IMAGE_SIZES: GeminiImageSize[] = ["1K", "2K"];
 const GEMINI_ASPECT_RATIOS: GeminiAspectRatio[] = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9", "1:4", "4:1"];
@@ -406,13 +406,15 @@ const GEMINI_ASPECT_RATIOS: GeminiAspectRatio[] = ["1:1", "2:3", "3:2", "3:4", "
 function makeApiProfileDraft(patch: Partial<ApiProfileDraft> = {}): ApiProfileDraft {
   const provider = patch.provider ?? "openai";
   const defaultModel = provider === "gemini" ? DEFAULT_GEMINI_MODEL : DEFAULT_OPENAI_MODEL;
+  const defaultModels = provider === "gemini" ? [DEFAULT_GEMINI_MODEL] : [...OPENAI_IMAGE_MODELS];
+  const selectedModel = patch.selectedModel ?? defaultModel;
   return {
     id: patch.id,
     name: patch.name ?? (provider === "gemini" ? "Gemini 图像 Key" : "quya GPT 图像 Key"),
     provider,
     apiKey: "",
-    selectedModel: patch.selectedModel ?? defaultModel,
-    models: patch.models?.length ? patch.models : [defaultModel]
+    selectedModel,
+    models: Array.from(new Set([selectedModel, ...defaultModels, ...(patch.models ?? [])]))
   };
 }
 
@@ -428,7 +430,8 @@ function modelOptionsFromProfiles(profiles: ApiProfile[]): ActiveModelOption[] {
   return profiles
     .filter((profile) => profile.enabled !== false)
     .flatMap((profile) => {
-      const models = Array.from(new Set([profile.selectedModel, ...(profile.models ?? [])].filter(Boolean)));
+      const defaultModels = profile.provider === "openai" ? OPENAI_IMAGE_MODELS : [DEFAULT_GEMINI_MODEL];
+      const models = Array.from(new Set([profile.selectedModel, ...defaultModels, ...(profile.models ?? [])].filter(Boolean)));
       return models.map((model) => ({
         profileId: profile.id,
         profileName: profile.name,
@@ -1921,7 +1924,8 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
         apiKey: apiProfileDraft.apiKey.trim() || undefined,
         profileId: apiProfileDraft.id
       });
-      const models = result.models.length ? result.models : [apiProfileDraft.provider === "gemini" ? DEFAULT_GEMINI_MODEL : DEFAULT_OPENAI_MODEL];
+      const fallbackModels = apiProfileDraft.provider === "gemini" ? [DEFAULT_GEMINI_MODEL] : [...OPENAI_IMAGE_MODELS];
+      const models = result.models.length ? result.models : fallbackModels;
       setApiProfileDraft((draft) => ({
         ...draft,
         models,

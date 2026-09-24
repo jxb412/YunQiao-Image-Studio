@@ -16,12 +16,12 @@ import { ProxyAgent, type Dispatcher } from "undici";
 import { createImageEdit, createImageGeneration } from "../shared/imageApi";
 import type { ImageApiFetch } from "../shared/imageApi";
 import type { ImageEditRequest, ImageGenerationRequest, ImageProvider } from "../shared/imageApiTypes";
+import { DEFAULT_OPENAI_MODEL, OPENAI_IMAGE_MODELS } from "../shared/imageModels";
 
 let mainWindow: BrowserWindow | null = null;
 let encryptedApiKey: Buffer | null = null;
 const FIXED_API_BASE_URL = "https://api.quya.org";
 const GEMINI_API_BASE_URL = `${FIXED_API_BASE_URL}/v1beta`;
-const DEFAULT_OPENAI_MODEL = "gpt-image-2";
 const DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-image";
 const FALLBACK_GEMINI_IMAGE_MODELS = ["gemini-3.1-flash-image", "gemini-3-pro-image-preview", "gemini-2.5-flash-image"];
 const SUPPORTED_IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp"]);
@@ -117,7 +117,7 @@ function normalizeProvider(value: unknown): ImageProvider {
 }
 
 function defaultModelsForProvider(provider: ImageProvider) {
-  return provider === "gemini" ? [DEFAULT_GEMINI_MODEL] : [DEFAULT_OPENAI_MODEL];
+  return provider === "gemini" ? [DEFAULT_GEMINI_MODEL] : [...OPENAI_IMAGE_MODELS];
 }
 
 function defaultBaseUrlForProvider(provider: ImageProvider) {
@@ -131,7 +131,7 @@ function defaultApiProfile(): PersistedApiProfile {
     name: "quya GPT 图像",
     provider: "openai",
     apiBaseUrl: FIXED_API_BASE_URL,
-    models: [DEFAULT_OPENAI_MODEL],
+    models: [...OPENAI_IMAGE_MODELS],
     selectedModel: DEFAULT_OPENAI_MODEL,
     enabled: true,
     hasKey: false,
@@ -144,9 +144,10 @@ function normalizeApiProfile(value: unknown, fallbackIndex = 0): PersistedApiPro
   const source = value && typeof value === "object" ? value as Record<string, unknown> : {};
   const provider = normalizeProvider(source.provider);
   const defaults = defaultModelsForProvider(provider);
-  const models = Array.isArray(source.models)
-    ? Array.from(new Set(source.models.map(String).map((item) => item.trim()).filter(Boolean)))
-    : defaults;
+  const configuredModels = Array.isArray(source.models)
+    ? source.models.map(String).map((item) => item.trim()).filter(Boolean)
+    : [];
+  const models = Array.from(new Set([...defaults, ...configuredModels]));
   const selectedModel = typeof source.selectedModel === "string" && source.selectedModel.trim()
     ? source.selectedModel.trim()
     : models[0] ?? defaults[0];
@@ -1084,7 +1085,7 @@ function imageModelsFromOpenAiResponse(value: unknown) {
     .map((item) => item && typeof item === "object" && typeof (item as { id?: unknown }).id === "string" ? (item as { id: string }).id : "")
     .map(normalizeModelId)
     .filter((model) => /image|gpt-image/i.test(model));
-  return Array.from(new Set(models.length ? models : [DEFAULT_OPENAI_MODEL]));
+  return Array.from(new Set([...OPENAI_IMAGE_MODELS, ...models]));
 }
 
 function imageModelsFromGeminiResponse(value: unknown) {

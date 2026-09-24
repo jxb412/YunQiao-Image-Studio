@@ -12,7 +12,7 @@
 ```ts
 export const IMAGE_API_CONFIG = {
   defaultBaseURL: "https://api.quya.org",
-  model: "gpt-image-2",
+  model: "gpt-image-2", // 也支持 gpt-image-2.5-flare / gpt-image-2.5-sunburst
   geminiModel: "gemini-3.1-flash-image",
   generationPath: "/v1/images/generations",
   editPath: "/v1/images/edits",
@@ -39,7 +39,7 @@ Authorization: Bearer <api_key>
 
 ## 3. 文生图接口
 
-文生图使用 `gpt-image-2` 的图片生成能力。
+文生图使用 GPT 图像模型的图片生成能力。客户端内置 `gpt-image-2`、`gpt-image-2.5-flare` 和 `gpt-image-2.5-sunburst`，当前选中的模型会原样写入请求体。
 
 端点:
 
@@ -66,7 +66,7 @@ Content-Type: application/json
 
 | 字段 | 必填 | UI 名称 | 允许值 | 说明 |
 | --- | --- | --- | --- | --- |
-| `model` | 是 | 模型 | `gpt-image-2` | 固定 |
+| `model` | 是 | 模型 | `gpt-image-2` / `gpt-image-2.5-flare` / `gpt-image-2.5-sunburst` | 当前选中的 GPT 图像模型 |
 | `prompt` | 是 | 提示词 | 字符串 | 由模板和用户输入合成 |
 | `size` | 否 | 尺寸 | `auto` 或 `WIDTHxHEIGHT` | GPT Image 2 支持灵活尺寸 |
 | `quality` | 否 | 质量 | `auto`/`low`/`medium`/`high` | 草稿到精修 |
@@ -102,7 +102,7 @@ Content-Type: application/json
 
 ## 4. 图生图和编辑接口
 
-图生图、局部重绘和 AI 修图使用 `gpt-image-2` 的图片编辑能力。客户端优先使用 multipart/form-data 上传本地图片文件，避免把本地图片误作为不合法的 `image_url` 传入接口。
+图生图、局部重绘和 AI 修图使用当前选中的 GPT 图像模型的图片编辑能力。客户端优先使用 multipart/form-data 上传本地图片文件，避免把本地图片误作为不合法的 `image_url` 传入接口。
 
 端点:
 
@@ -146,7 +146,7 @@ output_format=png
 
 | 字段 | 必填 | UI 名称 | 说明 |
 | --- | --- | --- | --- |
-| `model` | 是 | 模型 | 固定 `gpt-image-2` |
+| `model` | 是 | 模型 | `gpt-image-2` / `gpt-image-2.5-flare` / `gpt-image-2.5-sunburst` |
 | `images`/`image[]` | 是 | 参考图 | 1 到 16 张 |
 | `prompt` | 是 | 编辑描述 | 说明保留和修改内容 |
 | `mask` | 否 | 遮罩 | 局部重绘时使用 |
@@ -169,7 +169,7 @@ output_format=png
 - `strength`
 - `style`
 - `response_format`
-- `input_fidelity`。默认不暴露、不主动传。`gpt-image-2` 图片输入按官方模型摘要已默认高保真；若目标代理服务实测支持，可作为开发者实验字段透传。
+- `input_fidelity`。默认不暴露、不主动传。GPT 图像模型的图片输入按服务能力处理；若目标代理服务实测支持，可作为开发者实验字段透传。
 
 ## 4.1 Gemini 图像接口
 

@@ -3,8 +3,8 @@ import path from "node:path";
 
 import type { GeminiAspectRatio, GeminiImageSize, ImageApiResult, ImageEditRequest, ImageGenerationRequest } from "./imageApiTypes";
 import { normalizeImageSizeOrThrow, parseImageSize } from "./imageSize";
+import { DEFAULT_OPENAI_MODEL } from "./imageModels";
 
-const IMAGE_MODEL = "gpt-image-2";
 const GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image";
 const GEMINI_ASPECT_RATIOS: GeminiAspectRatio[] = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9", "1:4", "4:1"];
 
@@ -32,7 +32,7 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs?: numb
 
 export function buildImageRequestBodyForTest(request: ImageGenerationRequest) {
   const body: Record<string, unknown> = {
-    model: request.model || IMAGE_MODEL,
+    model: request.model || DEFAULT_OPENAI_MODEL,
     prompt: request.prompt,
     size: normalizeImageSizeOrThrow(request.size ?? "auto"),
     quality: request.quality ?? "auto",
@@ -303,7 +303,7 @@ export async function createImageGeneration(
   }, timeoutMs, fetchImpl);
 
   const result = await parseImageResponse(response);
-  return { ...result, provider: "openai", model: request.model || IMAGE_MODEL };
+  return { ...result, provider: "openai", model: request.model || DEFAULT_OPENAI_MODEL };
 }
 
 export async function createImageEdit(
@@ -347,5 +347,5 @@ export async function createImageEdit(
   }, timeoutMs, fetchImpl);
 
   const result = await parseImageResponse(response);
-  return { ...result, provider: "openai", model: request.model || IMAGE_MODEL };
+  return { ...result, provider: "openai", model: request.model || DEFAULT_OPENAI_MODEL };
 }

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { buildGeminiRequestBodyForTest, buildImageRequestBodyForTest, createImageGeneration } from "../src/shared/imageApi.ts";
 import { validateGptImage2Size } from "../src/shared/imageSize.ts";
+import { OPENAI_IMAGE_MODELS } from "../src/shared/imageModels.ts";
 import { composePrompt } from "../src/shared/promptComposer.ts";
 
 const validSize = validateGptImage2Size("1024x1536");
@@ -49,6 +50,17 @@ const body = buildImageRequestBodyForTest({
 assert.equal(body.model, "gpt-image-2");
 assert.equal(body.size, "1024x1024");
 assert.equal(Object.hasOwn(body, "n"), false);
+
+for (const model of ["gpt-image-2.5-flare", "gpt-image-2.5-sunburst"]) {
+  const modelBody = buildImageRequestBodyForTest({
+    model,
+    prompt: "测试新模型",
+    size: "1024x1024"
+  });
+  assert.equal(modelBody.model, model);
+  assert.equal(Object.hasOwn(modelBody, "n"), false);
+}
+assert.deepEqual(OPENAI_IMAGE_MODELS, ["gpt-image-2", "gpt-image-2.5-flare", "gpt-image-2.5-sunburst"]);
 
 const geminiBody = await buildGeminiRequestBodyForTest({
   provider: "gemini",

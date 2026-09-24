@@ -2,23 +2,23 @@
 
 YunQiao Image Studio（云桥图像工坊 / 云桥Pro）是一款开源的 AI 图像生成与编辑桌面工具，基于 Electron、React 和 TypeScript 构建。它面向电商、短剧、自媒体、设计团队和商业内容生产场景，支持文生图、图生图、批量生产、行业模板、素材管理、AI 修图工具箱和云端存储。
 
-项目支持 OpenAI 兼容的 `gpt-image-2` 与 Gemini 图像模型：两类图像接口都走 `quya.org` 服务，可保存多组 Key、获取模型列表，并在顶部模型选择器切换当前生图模型。
+项目支持 OpenAI 兼容的 `gpt-image-2`、`gpt-image-2.5-flare`、`gpt-image-2.5-sunburst` 与 Gemini 图像模型：两类图像接口都走 `quya.org` 服务，可保存多组 Key、获取模型列表，并在顶部模型选择器切换当前生图模型。
 
 ## 最新版本
 
-当前发布版本：`v0.1.19`
+当前发布版本：`v0.1.20`
 
 GitHub Release 下载页：
 
 ```text
-https://github.com/jxb412/YunQiao-Image-Studio/releases/tag/v0.1.19
+https://github.com/jxb412/YunQiao-Image-Studio/releases/tag/v0.1.20
 ```
 
 客户端文件：
 
-- Windows x64 便携版：`YunQiao-Image-Studio-0.1.19-win-x64-portable.exe`
-- macOS Intel x64：`YunQiao-Image-Studio-0.1.19-mac-x64.dmg`
-- macOS Apple Silicon arm64：`YunQiao-Image-Studio-0.1.19-mac-arm64.dmg`
+- Windows x64 便携版：`YunQiao-Image-Studio-0.1.20-win-x64-portable.exe`
+- macOS Intel x64：`YunQiao-Image-Studio-0.1.20-mac-x64.dmg`
+- macOS Apple Silicon arm64：`YunQiao-Image-Studio-0.1.20-mac-arm64.dmg`
 
 Windows 版本下载后双击即可运行，不需要安装 Node.js、npm 或 Electron。当前开源构建未购买代码签名证书，Windows 首次运行可能出现 SmartScreen “Windows 已保护你的电脑 / 发布者未知”提示，处理方式见本文的 Windows 首次运行说明。macOS 版本当前未做 Apple Developer ID 签名和公证，首次打开方式见本文的 macOS 说明。
 
@@ -31,10 +31,17 @@ Windows 版本下载后双击即可运行，不需要安装 Node.js、npm 或 El
 - 行业模板库：内置电商、短剧、自媒体、漫画动漫、人物图像、二次元头像、潮流社交、虚拟IP、游戏美术、餐饮、品牌广告等模板。
 - 作品素材库：保存生成结果、提示词、参数快照、本地路径和云端 URL。
 - 云端存储：支持 OSS、COS、OBS、七牛、MinIO、FTP、SFTP。
-- 多模型接口：支持 quya.org / `gpt-image-2` 与 Gemini 图像模型，可保存多组 Key 并选择当前模型。
+- 多模型接口：支持 quya.org / `gpt-image-2`、`gpt-image-2.5-flare`、`gpt-image-2.5-sunburst` 与 Gemini 图像模型，可保存多组 Key 并选择当前模型。
 - 程序代理：默认勾选跟随 Windows/macOS 系统代理，取消后可选择单独 HTTP/HTTPS 代理或直连。
 - 本机安全存储：API Key 和云存储密钥只保存在本机安全存储中。
 - 跨平台配置：同一套代码支持 Windows 和 macOS 构建。
+
+## v0.1.20 更新重点
+
+- 新增 `gpt-image-2.5-flare` 和 `gpt-image-2.5-sunburst` 模型支持。
+- 设置页、顶部模型选择器、模型列表获取和旧配置兼容逻辑已同步支持两个新模型。
+- 文生图、图生图、局部重绘、AI 修图和批量生产会透传当前选择的 GPT 图像模型。
+- 完善模型 API 规范、用户手册、产品文档和核心请求测试。
 
 ## v0.1.19 更新重点
 
@@ -55,7 +62,7 @@ Windows 版本下载后双击即可运行，不需要安装 Node.js、npm 或 El
 - Lucide React
 - OpenAI 兼容图片接口
 - Gemini 图像接口
-- 默认图片模型：`gpt-image-2`，可切换 Gemini 图像模型
+- 默认图片模型：`gpt-image-2`，可切换 `gpt-image-2.5-flare`、`gpt-image-2.5-sunburst` 和 Gemini 图像模型
 
 ## 快速开始
 
@@ -96,10 +103,12 @@ npm run build
 
 本项目的图片生成和图片编辑能力按当前模型分流：
 
-- GPT 文生图：使用 `gpt-image-2` 生成图片。
-- GPT 图生图：使用 `gpt-image-2` 基于输入图片继续编辑。
-- GPT 局部重绘 / AI 修图：使用 `gpt-image-2` 图片编辑能力处理原图。
+- GPT 文生图：可使用 `gpt-image-2`、`gpt-image-2.5-flare` 或 `gpt-image-2.5-sunburst` 生成图片。
+- GPT 图生图：可使用以上任一 GPT 图像模型基于输入图片继续编辑。
+- GPT 局部重绘 / AI 修图：可使用以上任一 GPT 图像模型的图片编辑能力处理原图。
 - Gemini：使用 `quya.org` 的 Gemini 原生接口生成或编辑图片，参数区会切换为 Gemini 输出大小和画幅比例。
+
+三个 GPT 图像模型共用 OpenAI 兼容的 `/v1/images/generations` 和 `/v1/images/edits` 接口。设置页获取模型失败或服务端没有返回模型列表时，客户端仍会显示这三个内置模型；已有的旧配置也会自动补齐，不需要重新添加 API Key。
 
 当前默认每次生成或编辑 1 张图片，不主动传递多图数量参数。这样可以避免部分中转接口把数量参数转换成 `tools[0].n` 后被官方接口拒绝。
 
@@ -120,7 +129,7 @@ AI 修图工具箱支持局部遮罩：可在图片上绘制需要修改的区�
 - 创作页支持填写项目名称，生成作品会自动归入对应项目。
 - 行业模板库支持新增、编辑、导入和导出 JSON 模板包。
 - 模板库会按行业目标数量自动补足常用场景，热门行业会提供更多模板。
-- 新增模板已按 `gpt-image-2` 尺寸规则检查，默认不超过 2K。
+- 新增模板已按 GPT 图像模型尺寸规则检查，默认不超过 2K。
 - 人物、二次元和虚拟 IP 模板默认加入肖像、版权、未成年人和低俗内容规避提示。
 - 作品素材库支持搜索、项目筛选、云端状态筛选、预览、继续编辑、修图和打开本地文件位置。
 - 顶部工具栏支持手动检查新版本，方便下载对应系统的新版客户端。

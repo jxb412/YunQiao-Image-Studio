@@ -2,7 +2,7 @@
 
 版本: v1.0  
 日期: 2026-06-28  
-模型: `gpt-image-2` / `gemini-3.1-flash-image`
+模型: `gpt-image-2` / `gpt-image-2.5-flare` / `gpt-image-2.5-sunburst` / `gemini-3.1-flash-image`
 固定 API Base URL: `https://api.quya.org`
 
 ## 1. 产品定位
@@ -15,7 +15,7 @@
 
 豆包原文中的四分支模型需要调整为真实可开发形态:
 
-1. 主图像模型支持 `gpt-image-2` 和 Gemini 图像模型，默认使用 `gpt-image-2`，用户可在顶部切换已保存的模型配置。
+1. 主图像模型支持 `gpt-image-2`、`gpt-image-2.5-flare`、`gpt-image-2.5-sunburst` 和 Gemini 图像模型，默认使用 `gpt-image-2`，用户可在顶部切换已保存的模型配置。
 2. “极速草图、高清商业、影视写实、二次元漫画”优先作为产品预设，实际请求参数按当前模型分别映射。
 3. 预设通过 `quality`、`size`、`output_format`、行业提示词、后处理参数组合实现。
 4. `负面提示词`不是独立 API 参数，需要在最终 prompt 中拼接为“避免出现...”约束。
@@ -163,7 +163,7 @@
 
 - Logo 与标题: 云桥Pro AI绘图 · GPT-Image-2 商用专业版
 - 搜索框: 搜索模板/关键词/历史作品
-- 当前模型: 顶部模型选择器显示已保存的 `gpt-image-2` 或 Gemini 图像模型
+- 当前模型: 顶部模型选择器显示已保存的 GPT 图像模型（默认 `gpt-image-2`，也支持两个 2.5 模型）或 Gemini 图像模型
 - 质量档位: 草稿/标准/精修/自动
 - 云同步状态
 - 算力/额度
@@ -234,7 +234,7 @@
 
 真实 API 映射:
 
-- `model`: 固定 `gpt-image-2`
+- `model`: 当前选中的 GPT 图像模型，默认 `gpt-image-2`，也支持 `gpt-image-2.5-flare` 和 `gpt-image-2.5-sunburst`
 - `prompt`: 由用户描述、行业模板、避免内容、输出约束组合
 - `size`: UI 尺寸
 - `quality`: `low` / `medium` / `high` / `auto`
@@ -266,7 +266,7 @@
 真实 API 映射:
 
 - 端点: `/v1/images/edits`
-- `model`: `gpt-image-2`
+- `model`: 当前选中的 GPT 图像模型
 - `images`: 1 到 16 张参考图
 - `mask`: 局部重绘时传入
 - `prompt`: 编辑目标
@@ -284,7 +284,7 @@
 - `negative_prompt`
 - `steps`
 - `sampler`
-- `input_fidelity`。默认不在 UI 暴露、不主动传。官方模型摘要说明 `gpt-image-2` 对图片输入已默认高保真；若 `api.quya.org` 实测兼容该字段，可在开发者实验开关中启用。
+- `input_fidelity`。默认不在 UI 暴露、不主动传。GPT 图像模型对图片输入按服务能力处理；若 `api.quya.org` 实测兼容该字段，可在开发者实验开关中启用。
 
 相似度 UI 设计:
 
@@ -394,7 +394,7 @@ Excel 字段建议:
 - 统一色调: edits + 原图 + 色调 prompt
 - 商品光影优化: edits + 原图 + 商品保真 prompt
 - 线稿提取: edits 或本地 CV 后处理，优先本地后处理再给模型优化
-- 无损放大: 不属于 `gpt-image-2` 原生参数，建议本地或第三方超分模块
+- 无损放大: 不属于 GPT 图像模型原生参数，建议本地或第三方超分模块
 
 每个修图输出同样进入作品库，并支持继续图生图。
 
