@@ -87,6 +87,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y lftp
 
+          mkdir -p release-clients
+          cp release-assets/*.exe release-assets/*.dmg release-clients/
+
           # The FTP account can upload new files at the site root, while some
           # existing files or managed subdirectories may be owned by the panel.
           # Upload the runnable clients first, then mirror latest.json and
@@ -100,8 +103,7 @@ jobs:
           set net:max-retries 3
           set net:timeout 60
           cd /
-          mput release-assets/*.exe
-          mput release-assets/*.dmg
+          mirror --reverse --continue --parallel=3 --verbose release-clients .
           put release-assets/latest-ftp-root.json -o latest-${TAG}.json
           bye
           EOF
