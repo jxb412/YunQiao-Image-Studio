@@ -93,6 +93,7 @@ jobs:
           # nested release folders on a best-effort basis.
           lftp -u "${FTP_USER},${FTP_PASSWORD}" -p "${FTP_PORT}" "${FTP_HOST}" <<EOF
           set cmd:fail-exit yes
+          set xfer:clobber on
           set ftp:ssl-allow no
           set net:max-retries 3
           set net:timeout 60
@@ -105,6 +106,7 @@ jobs:
 
           lftp -u "${FTP_USER},${FTP_PASSWORD}" -p "${FTP_PORT}" "${FTP_HOST}" <<EOF || echo "Could not overwrite root latest.json; keep versioned manifest latest-${TAG}.json."
           set cmd:fail-exit yes
+          set xfer:clobber on
           set ftp:ssl-allow no
           set net:max-retries 3
           set net:timeout 60
@@ -116,6 +118,7 @@ jobs:
 
           lftp -u "${FTP_USER},${FTP_PASSWORD}" -p "${FTP_PORT}" "${FTP_HOST}" <<EOF || echo "Could not mirror releases/${TAG}; FTP directory may be managed by the server panel."
           set cmd:fail-exit yes
+          set xfer:clobber on
           set ftp:ssl-allow no
           set net:max-retries 3
           set net:timeout 60
@@ -127,6 +130,7 @@ jobs:
 
           lftp -u "${FTP_USER},${FTP_PASSWORD}" -p "${FTP_PORT}" "${FTP_HOST}" <<EOF || echo "Could not mirror yunqiao/releases/${TAG}; FTP directory may be managed by the server panel."
           set cmd:fail-exit yes
+          set xfer:clobber on
           set ftp:ssl-allow no
           set net:max-retries 3
           set net:timeout 60
@@ -140,6 +144,7 @@ jobs:
 
           lftp -u "${FTP_USER},${FTP_PASSWORD}" -p "${FTP_PORT}" "${FTP_HOST}" <<EOF || echo "Could not mirror public_html; FTP directory may not be the web root."
           set cmd:fail-exit yes
+          set xfer:clobber on
           set ftp:ssl-allow no
           set net:max-retries 3
           set net:timeout 60
