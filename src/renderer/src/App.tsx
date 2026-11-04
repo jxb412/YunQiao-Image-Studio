@@ -4349,11 +4349,11 @@ function CreatorPage({
 
         <label>
           主体与目标
-          <textarea value={promptText} onChange={(event) => onPromptChange(event.target.value)} />
+          <textarea className="promptTextarea" value={promptText} onChange={(event) => onPromptChange(event.target.value)} />
         </label>
         <label>
           避免内容
-          <textarea className="compactTextarea" value={avoidText} onChange={(event) => onAvoidChange(event.target.value)} />
+          <textarea className="compactTextarea avoidTextarea" value={avoidText} onChange={(event) => onAvoidChange(event.target.value)} />
         </label>
         <button className="secondaryButton wide" onClick={() => onCopy(`${finalPrompt}\n避免内容：${finalAvoid}`, "完整提示词")}>
           <Copy size={15} />

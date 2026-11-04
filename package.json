@@ -65,7 +65,7 @@
       ],
       "artifactName": "${productName}-${version}-${arch}.${ext}",
       "icon": "build/icon.ico",
-      "signAndEditExecutable": false
+      "signAndEditExecutable": true
     },
     "mac": {
       "target": [

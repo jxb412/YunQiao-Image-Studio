@@ -3271,3 +3271,62 @@ p {
 .inspectorPanel > label input {
   align-self: start;
 }
+
+/* ---------- 创作页纵向节奏压缩 + 吸顶页头 ---------- */
+
+.pageHead {
+  position: sticky;
+  top: -20px;
+  z-index: 5;
+  margin: -20px -20px 16px;
+  padding: 18px 20px 12px;
+  background: linear-gradient(180deg, rgba(11, 17, 25, 0.96) 0%, rgba(11, 17, 25, 0.86) 72%, rgba(11, 17, 25, 0) 100%);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.composerPanel {
+  padding: 14px;
+}
+
+.composerPanel label {
+  gap: 5px;
+  margin-bottom: 10px;
+}
+
+.composerPanel .templateSummary {
+  margin: -2px 0 10px;
+  padding: 8px 10px;
+}
+
+.composerPanel .variablePanel {
+  margin-bottom: 10px;
+  padding: 10px;
+}
+
+.promptTextarea {
+  min-height: 96px;
+}
+
+.avoidTextarea {
+  min-height: 72px;
+}
+
+.composerPanel .uploadDrop {
+  height: 46px;
+  margin-bottom: 10px;
+}
+
+.composerPanel > .buttonRow,
+.composerPanel > button.secondaryButton {
+  margin-top: 2px;
+}
+
+/* 结果区高度更紧凑，信息面板不再被推到很远 */
+.stagePanel {
+  min-height: 480px;
+}
+
+.stagePanel .resultTile {
+  max-height: 300px;
+}
