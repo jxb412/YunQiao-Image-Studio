@@ -4535,10 +4535,6 @@ function CreatorPage({
           <strong>最终提示词预览</strong>
           <p>{finalPrompt}</p>
         </div>
-        <button className="primaryButton wide" onClick={onGenerate} disabled={isGenerating}>
-          <Sparkles size={16} />
-          {creatorGenerateLabel(active, isGenerating)}
-        </button>
       </aside>
     </div>
   );

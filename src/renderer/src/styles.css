@@ -3222,3 +3222,52 @@ p {
     display: none;
   }
 }
+
+/* ---------- 中等宽度：参数检查器排列在结果区下方并做卡片式分栏 ---------- */
+
+@media (min-width: 1181px) and (max-width: 1680px) {
+  .creatorLayout {
+    grid-template-columns: 322px minmax(0, 1fr);
+  }
+
+  .inspectorPanel {
+    grid-column: 2;
+    position: static;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(196px, 1fr));
+    gap: 12px 16px;
+    align-content: start;
+  }
+
+  .inspectorPanel > .panelHeader {
+    grid-column: 1 / -1;
+    margin-bottom: 0;
+  }
+
+  .inspectorPanel > .paramGroup,
+  .inspectorPanel > .promptPreviewBox,
+  .inspectorPanel > .buttonRow,
+  .inspectorPanel > .infoList,
+  .inspectorPanel > .diagnosticBox {
+    grid-column: 1 / -1;
+    margin: 0;
+  }
+
+  .inspectorPanel > label {
+    margin-bottom: 0;
+  }
+
+  .inspectorPanel .sizeControl,
+  .inspectorPanel .paramGroup {
+    max-width: none;
+  }
+}
+
+.inspectorPanel > label {
+  align-content: start;
+}
+
+.inspectorPanel > label select,
+.inspectorPanel > label input {
+  align-self: start;
+}
