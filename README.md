@@ -14,11 +14,17 @@ GitHub Release 下载页：
 https://github.com/jxb412/YunQiao-Image-Studio/releases/tag/v0.1.21
 ```
 
-客户端文件：
+客户端文件（公开下载）：
 
-- Windows x64 便携版：`YunQiao-Image-Studio-0.1.21-win-x64-portable.exe`
-- macOS Intel x64：`YunQiao-Image-Studio-0.1.21-mac-x64.dmg`
-- macOS Apple Silicon arm64：`YunQiao-Image-Studio-0.1.21-mac-arm64.dmg`
+| 平台 | 文件 | 下载地址 |
+| --- | --- | --- |
+| Windows x64 便携版 | `YunQiao-Image-Studio-0.1.21-win-x64-portable.exe` | https://down.haowucm.cn/YunQiao-Image-Studio-0.1.21-win-x64-portable.exe |
+| macOS Apple Silicon | `YunQiao-Image-Studio-0.1.21-mac-arm64.dmg` | https://github.com/jxb412/YunQiao-Image-Studio/releases/download/v0.1.21/YunQiao-Image-Studio-0.1.21-mac-arm64.dmg |
+| macOS Intel | `YunQiao-Image-Studio-0.1.21-mac-x64.dmg` | https://github.com/jxb412/YunQiao-Image-Studio/releases/download/v0.1.21/YunQiao-Image-Studio-0.1.21-mac-x64.dmg |
+
+更新清单（客户端自动检查更新使用）：https://down.haowucm.cn/latest.json
+
+> 说明：Electron 桌面客户端提供 Windows 与 macOS 两个平台；iOS 不是 Electron 目标平台，本项目不提供 iOS 包。Windows 包由本地构建并上传到下载服务器，macOS 两个架构的 dmg 由 GitHub Actions 的 macos-latest 运行器构建发布。
 
 Windows 版本下载后双击即可运行，不需要安装 Node.js、npm 或 Electron。当前开源构建未购买代码签名证书，Windows 首次运行可能出现 SmartScreen “Windows 已保护你的电脑 / 发布者未知”提示，处理方式见本文的 Windows 首次运行说明。macOS 版本当前未做 Apple Developer ID 签名和公证，首次打开方式见本文的 macOS 说明。
 

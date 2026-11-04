@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "name": "YunQiao Image Studio",
+  "channel": "stable",
+  "version": "0.1.21",
+  "minimumVersion": "0.1.21",
+  "tag": "v0.1.21",
+  "publishedAt": "2026-11-04T03:40:19.224Z",
+  "releaseUrl": "https://github.com/jxb412/YunQiao-Image-Studio/releases/tag/v0.1.21",
+  "notesUrl": "https://github.com/jxb412/YunQiao-Image-Studio/releases/tag/v0.1.21",
+  "downloads": {
+    "macos-arm64": {
+      "filename": "YunQiao-Image-Studio-0.1.21-mac-arm64.dmg",
+      "url": "https://down.haowucm.cn/releases/v0.1.21/YunQiao-Image-Studio-0.1.21-mac-arm64.dmg",
+      "githubUrl": "https://github.com/jxb412/YunQiao-Image-Studio/releases/download/v0.1.21/YunQiao-Image-Studio-0.1.21-mac-arm64.dmg",
+      "size": 124291079,
+      "sha256": "89390b2278c9a29df42a6b2062da8a243e0208085172561a35ee1a23d1576ec0"
+    },
+    "macos-x64": {
+      "filename": "YunQiao-Image-Studio-0.1.21-mac-x64.dmg",
+      "url": "https://down.haowucm.cn/releases/v0.1.21/YunQiao-Image-Studio-0.1.21-mac-x64.dmg",
+      "githubUrl": "https://github.com/jxb412/YunQiao-Image-Studio/releases/download/v0.1.21/YunQiao-Image-Studio-0.1.21-mac-x64.dmg",
+      "size": 129268327,
+      "sha256": "f9965241573938e3f9281f39268720f3dac247a5a20cb6b889cf6069b5019559"
+    },
+    "windows-x64": {
+      "filename": "YunQiao-Image-Studio-0.1.21-win-x64-portable.exe",
+      "url": "https://down.haowucm.cn/releases/v0.1.21/YunQiao-Image-Studio-0.1.21-win-x64-portable.exe",
+      "githubUrl": "https://github.com/jxb412/YunQiao-Image-Studio/releases/download/v0.1.21/YunQiao-Image-Studio-0.1.21-win-x64-portable.exe",
+      "size": 83571125,
+      "sha256": "34d702d96eaf804c297bd321d189ebc32786490a919f66d62711d16b59c17ba9"
+    }
+  }
+}
