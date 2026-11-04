@@ -4,6 +4,7 @@ import {
   BookOpen,
   Boxes,
   Brush,
+  Check,
   ChevronDown,
   Cloud,
   CloudCog,
@@ -410,7 +411,7 @@ function makeApiProfileDraft(patch: Partial<ApiProfileDraft> = {}): ApiProfileDr
   const selectedModel = patch.selectedModel ?? defaultModel;
   return {
     id: patch.id,
-    name: patch.name ?? (provider === "gemini" ? "Gemini 图像 Key" : "quya GPT 图像 Key"),
+    name: patch.name ?? (provider === "gemini" ? "Gemini 图像 Key" : "云桥 GPT 图像 Key"),
     provider,
     apiKey: "",
     selectedModel,
@@ -440,6 +441,86 @@ function modelOptionsFromProfiles(profiles: ApiProfile[]): ActiveModelOption[] {
         hasKey: profile.hasKey
       }));
     });
+}
+
+function providerLabel(provider: ImageProvider) {
+  return provider === "gemini" ? "Gemini" : "GPT";
+}
+
+function ModelSwitcher({
+  options,
+  activeKey,
+  onChange
+}: {
+  options: ActiveModelOption[];
+  activeKey: string;
+  onChange: (key: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const active = options.find((option) => modelOptionKey(option) === activeKey) ?? options[0];
+
+  useEffect(() => {
+    if (!open) return;
+    const handlePointer = (event: MouseEvent) => {
+      if (!wrapRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", handlePointer);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handlePointer);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [open]);
+
+  return (
+    <div className={`modelSwitcher ${open ? "open" : ""}`} ref={wrapRef}>
+      <button
+        type="button"
+        className="modelSwitcherTrigger"
+        onClick={() => setOpen((value) => !value)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label="选择生图模型"
+      >
+        <span className={`providerBadge ${active?.provider ?? "openai"}`}>{active ? providerLabel(active.provider) : "模型"}</span>
+        <span className="modelSwitcherName">{active?.model ?? "请先配置模型"}</span>
+        <ChevronDown size={14} className="modelSwitcherChevron" />
+      </button>
+      {open && (
+        <div className="modelSwitcherMenu" role="listbox" aria-label="可用生图模型">
+          {options.length ? options.map((option) => {
+            const key = modelOptionKey(option);
+            return (
+              <button
+                type="button"
+                role="option"
+                aria-selected={key === activeKey}
+                key={key}
+                className={`modelSwitcherItem ${key === activeKey ? "active" : ""}`}
+                onClick={() => {
+                  setOpen(false);
+                  if (key !== activeKey) onChange(key);
+                }}
+              >
+                <span className={`providerBadge ${option.provider}`}>{providerLabel(option.provider)}</span>
+                <span className="modelSwitcherItemBody">
+                  <strong>{option.model}</strong>
+                  <small>{option.profileName}{option.hasKey ? "" : " · 未保存 Key"}</small>
+                </span>
+                {key === activeKey && <Check size={14} className="modelSwitcherCheck" />}
+              </button>
+            );
+          }) : (
+            <div className="modelSwitcherEmpty">还没有可用模型，请先在「API 与云端存储设置」中保存 Key。</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 const pageHints: Record<string, string> = {
@@ -813,7 +894,7 @@ type TemplateSeed = {
   avoid?: string;
 };
 
-const commonAvoid = "避免水印、二维码、乱码文字、侵权品牌标识、主体变形、低清晰度、杂乱背景、错误透视和明显 AI 伪影。";
+const commonAvoid = "避免水印、二维码、乱码文字、错别字、侵权品牌与明星肖像、主体结构变形、低清晰度、杂乱背景、错误透视、畸形手部、重复肢体和明显 AI 塑料感，不生成可读的具体数字与价格。";
 
 const universalTemplateSeeds: TemplateSeed[] = [
   {
@@ -923,6 +1004,39 @@ const universalTemplateSeeds: TemplateSeed[] = [
     size: "1024x1536",
     format: "jpeg",
     prompt: "为{industry}生成一张私域社群海报底图。主题为 {subject}，用户收益为 {selling_points}，面向 {audience}。画面亲和、可信、有行动引导空间，适合微信群、朋友圈、社群公告和转化活动。",
+  },
+  {
+    scene: "白底产品主图",
+    tags: ["白底", "主图"],
+    size: "1024x1024",
+    quality: "high",
+    prompt: "为{industry}生成一张纯白底产品主图。主体为 {product_name}，卖点为 {selling_points}。主体占画面 80% 左右，边缘干净，投影轻微，色彩还原准确，可直接用于电商与资料封面。",
+  },
+  {
+    scene: "多尺寸主图适配组",
+    tags: ["多尺寸", "适配"],
+    size: "1536x1024",
+    prompt: "为{industry}生成一张可裁切的多尺寸主视觉。主题为 {subject}，卖点为 {selling_points}。主体位于中心安全区，四周延续背景与留白，可裁成 1:1、3:4、16:9、9:16 使用。",
+  },
+  {
+    scene: "门店 POP 促销图",
+    tags: ["门店", "POP"],
+    size: "1024x1536",
+    format: "jpeg",
+    prompt: "为{industry}生成一张门店 POP 促销底图。活动为 {promotion}，产品为 {product_name}，卖点为 {selling_points}。画面远距离可识别，主体大、色彩醒目，留出价格与二维码区域。",
+  },
+  {
+    scene: "短视频口播背景",
+    tags: ["口播", "背景"],
+    size: "1536x1024",
+    prompt: "为{industry}生成一张短视频口播背景。内容方向为 {subject}，风格 {style}，色彩 {color_palette}。背景有层次但不抢人脸，中间偏侧留出人物站位，光线柔和均匀。",
+  },
+  {
+    scene: "招商加盟海报",
+    tags: ["招商", "加盟"],
+    size: "1024x1536",
+    format: "jpeg",
+    prompt: "为{industry}生成一张招商加盟海报底图。项目为 {subject}，合作价值为 {selling_points}，面向 {audience}。画面商务可信、有增长感，留出政策亮点、联系方式和二维码区域。",
   }
 ];
 
@@ -1059,34 +1173,701 @@ const industryTemplateSeeds: Record<string, TemplateSeed[]> = {
   ]
 };
 
-const industryTemplateGoals: Record<string, number> = {
-  电商零售: 36,
-  短剧影视: 28,
-  自媒体内容: 36,
-  人物图像: 34,
-  二次元头像: 34,
-  潮流社交: 32,
-  虚拟IP: 32,
-  餐饮茶饮: 24,
-  品牌广告: 22,
-  漫画动漫: 32,
-  美妆护肤: 18,
-  服饰鞋包: 18,
-  跨境电商: 18,
-  直播电商: 18,
-  潮玩玩具: 22,
-  个人IP: 22,
-  母婴宠物: 16,
-  房产本地生活: 16,
-  游戏美术: 24,
-  教育知识: 16,
-  文旅酒店: 16,
-  SaaS科技: 14,
-  金融保险: 14,
-  汽车出行: 14,
-  医美健康: 14,
-  "工业企业与 B2B": 14
+const industryTemplateSeedPack: Record<string, TemplateSeed[]> = {
+  游戏美术: [
+    { scene: "技能图标套组", tags: ["图标", "技能"], size: "1024x1024", quality: "high", prompt: "生成一组游戏技能图标。技能主题为 {subject}，元素属性为 {selling_points}，风格 {style}。图标居中、轮廓清晰、特效层次统一，深色或透明质感底，适合 UI 6 宫格展示。", avoid: "避免图标风格不统一、特效糊成一片、过曝、边缘毛边、文字乱码。" },
+    { scene: "游戏主视觉 KV", tags: ["KV", "主视觉"], size: "1536x1024", quality: "high", prompt: "生成一张游戏项目主视觉。世界观为 {subject}，核心角色为 {character}，卖点为 {selling_points}。画面包含主角、场景纵深和氛围光，构图有电影海报张力，右侧或下方预留标题区域。", avoid: "避免直接复刻知名游戏美术、角色比例失衡、画面元素堆叠混乱。" },
+    { scene: "UI 界面皮肤概念", tags: ["UI", "皮肤"], size: "1536x1024", prompt: "生成一套游戏 UI 界面皮肤概念图。主题为 {subject}，材质为 {material}，色彩 {color_palette}。包含按钮、面板、边框、进度条等模块化元素，风格统一、可切片，适合界面设计参考。", avoid: "避免生成具体数值和小字、模块比例失衡、贴图过密。" }
+  ],
+  家装建筑: [
+    { scene: "客厅方案效果图", tags: ["客厅", "方案"], size: "1536x1024", quality: "high", format: "jpeg", prompt: "生成一张客厅室内设计方案效果图。空间为 {scene}，风格 {style}，色彩 {color_palette}，材质组合为 {material}。家具比例真实，采光和窗景自然，软装层次清楚，适合客户提案。", avoid: "避免透视错误、家具悬浮、材料拼接不合理、空间比例失真。" },
+    { scene: "厨房卫浴空间图", tags: ["厨卫", "空间"], size: "1536x1024", quality: "high", format: "jpeg", prompt: "生成一张厨房或卫浴空间设计效果图。空间类型为 {subject}，风格 {style}，卖点为 {selling_points}。台面、柜体、五金和瓷砖材质清晰，动线合理，光线干净，适合整装公司案例展示。", avoid: "避免管道外露错误、门柜结构不合理、材质塑料感、空间拥挤。" },
+    { scene: "建筑夜景渲染", tags: ["建筑", "夜景"], size: "1536x1024", quality: "high", format: "jpeg", prompt: "生成一张建筑夜景渲染图。建筑类型为 {subject}，风格 {style}，地区氛围为 {region}。立面材质、灯光设计、街道与景观关系清楚，光影层次高级，适合方案汇报和地产宣传。", avoid: "避免建筑悬浮、窗格重复错乱、虚假地标、灯光过曝。" }
+  ],
+  文旅酒店: [
+    { scene: "目的地种草封面", tags: ["目的地", "种草"], size: "1024x1536", format: "jpeg", prompt: "生成一张文旅目的地种草封面底图。目的地为 {subject}，核心体验为 {selling_points}，地区文化为 {region}。画面有旅行向往感，包含自然风光、人文街景或特色活动，上方留标题空间。", avoid: "避免地标错误、游客过密、文字乱码、过度滤镜。" },
+    { scene: "民宿房型详情图", tags: ["民宿", "房型"], size: "1536x1024", format: "jpeg", prompt: "生成一张民宿或酒店房型详情图。房型为 {subject}，卖点为 {selling_points}，风格 {style}。画面展示床品、窗景、浴缸或露台，光线柔和真实，适合 OTA 与直订页面。", avoid: "避免空间比例失真、家具变形、虚假窗外景观、过度广角畸变。" },
+    { scene: "景区活动海报", tags: ["景区", "活动"], size: "1024x1536", format: "jpeg", prompt: "生成一张景区节庆活动海报底图。活动主题为 {subject}，节庆节点为 {season}，卖点为 {selling_points}。画面包含景区标志性元素、人群氛围与节日装饰，构图留出时间与票务信息区域。", avoid: "避免人群脸部崩坏、错误标识、元素堆砌、真实票务文字。" }
+  ],
+  教育知识: [
+    { scene: "课程详情页头图", tags: ["课程", "详情页"], size: "1536x1024", format: "jpeg", prompt: "生成一张在线课程详情页头图底图。课程主题为 {subject}，目标学员为 {audience}，价值点为 {selling_points}。画面专业可信，包含学习场景、工具或抽象知识结构，留出标题与讲师区域。", avoid: "避免虚构证书、具体承诺文字、二维码、人物表情夸张。" },
+    { scene: "教辅资料封面", tags: ["教辅", "封面"], size: "1024x1536", prompt: "生成一张教辅资料或讲义封面底图。学科或主题为 {subject}，适用人群为 {audience}，风格 {style}。画面有秩序感和知识感，可包含文具、书桌、图形笔记元素，留出书名与副标题区域。", avoid: "避免真实教材版权页、文字乱码、插图风格混乱。" },
+    { scene: "公开课直播预告", tags: ["公开课", "预告"], size: "1536x1024", format: "jpeg", prompt: "生成一张公开课直播预告底图。主题为 {subject}，讲师形象气质为 {character}，面向 {audience}。画面对比清晰、有专业感，左侧人物区右侧留白区，方便后期排版时间与报名信息。", avoid: "避免生成具体时间文字、虚假头衔、过度滤镜、人物五官崩坏。" }
+  ],
+  医美健康: [
+    { scene: "机构环境形象图", tags: ["机构", "环境"], size: "1536x1024", format: "jpeg", prompt: "生成一张医美或健康管理机构环境形象图。机构方向为 {subject}，风格 {style}，卖点为 {selling_points}。空间干净、材质高级、光线柔和，包含前台、护理室或休息区，体现专业与舒适。", avoid: "避免医疗器械错误、夸大疗效、真实机构标识、环境脏乱。" },
+    { scene: "项目科普图", tags: ["科普", "项目"], size: "1024x1536", prompt: "生成一张医美项目科普底图。项目为 {subject}，受众为 {audience}，说明重点为 {selling_points}。画面专业、克制、有信任感，包含咨询场景、仪器或护理细节，留出科普文字区域。", avoid: "避免前后对比夸大、血腥细节、恐吓式表达、虚假医疗承诺。" },
+    { scene: "健康管理服务图", tags: ["健康管理", "服务"], size: "1536x1024", format: "jpeg", prompt: "生成一张健康管理服务宣传图。服务方向为 {subject}，目标人群为 {audience}，核心价值为 {selling_points}。画面体现体检、营养、运动或咨询场景，气质专业温和，适合机构官网与社媒。", avoid: "避免医疗广告违规暗示、数据造假、人物表情僵硬。" }
+  ],
+  "工业企业与 B2B": [
+    { scene: "产品参数展示图", tags: ["参数", "产品"], size: "1536x1024", quality: "high", prompt: "生成一张工业产品参数展示图。产品为 {product_name}，关键优势为 {selling_points}，材质/工艺为 {material}。产品居中，背景为纯净工业灰或车间虚化，四周留出参数标注区域，适合产品手册。", avoid: "避免设备结构错乱、虚假认证标识、参数文字乱码、过度科幻。" },
+    { scene: "产业链能力图", tags: ["产业链", "能力"], size: "1536x1024", prompt: "生成一张企业产业链能力示意图底图。行业为 {subject}，能力亮点为 {selling_points}。画面以层次化模块展示研发、生产、质检、仓储或物流环节，风格克制专业，适合招商与投标材料。", avoid: "避免流程逻辑错误、文字乱码、图标风格混乱、信息过密。" },
+    { scene: "海外客户案例图", tags: ["海外", "案例"], size: "1536x1024", format: "jpeg", prompt: "生成一张 B2B 海外客户案例配图。产品为 {product_name}，应用场景为 {scene}，地区为 {region}。画面体现实地安装、运行或交付场景，光线真实，人物与设备比例准确，适合官网案例页。", avoid: "避免危险操作、设备比例错误、真实客户信息、文字乱码。" }
+  ],
+  房产本地生活: [
+    { scene: "样板间实景图", tags: ["样板间", "实景"], size: "1536x1024", quality: "high", format: "jpeg", prompt: "生成一张楼盘样板间实景图。户型或空间为 {scene}，风格 {style}，卖点为 {selling_points}。画面真实明亮，家具尺度合理，窗外景观自然，适合线上看房与案场物料。", avoid: "避免透视错误、家具悬浮、虚假窗外景观、空间比例异常。" },
+    { scene: "社区配套展示图", tags: ["社区", "配套"], size: "1536x1024", format: "jpeg", prompt: "生成一张社区配套展示图。配套类型为 {subject}，目标客群为 {audience}，卖点为 {selling_points}。画面包含园林、会所、儿童活动区或商业街，氛围真实有生活感。", avoid: "避免人群拥挤、设施结构错误、过度豪华失真。" },
+    { scene: "本地生活团购图", tags: ["团购", "本地"], size: "1024x1536", format: "jpeg", prompt: "生成一张本地生活服务团购底图。服务类型为 {subject}，门店场景为 {scene}，卖点为 {selling_points}。画面真实、有服务细节，主体突出，留出价格与门店信息区域。", avoid: "避免具体价格文字、虚假门店招牌、环境脏乱、人物隐私。" }
+  ],
+  母婴宠物: [
+    { scene: "母婴用品场景图", tags: ["母婴", "场景"], size: "1024x1536", format: "jpeg", prompt: "生成一张母婴用品使用场景图。产品为 {product_name}，使用场景为 {scene}，卖点为 {selling_points}。画面温暖、安全、干净，材质柔软真实，人物与产品比例准确，适合电商与种草。", avoid: "避免危险使用方式、儿童隐私过度暴露、产品结构改变、医疗暗示。" },
+    { scene: "宠物生活种草图", tags: ["宠物", "种草"], size: "1024x1536", format: "jpeg", prompt: "生成一张宠物生活种草图。宠物与产品为 {product_name}，场景为 {scene}，卖点为 {selling_points}。画面自然有爱，宠物姿态真实，背景干净，适合社媒与详情页。", avoid: "避免宠物姿态畸变、食物不可食用质感、夸大医疗功效。" },
+    { scene: "亲子活动海报", tags: ["亲子", "活动"], size: "1024x1536", format: "jpeg", prompt: "生成一张亲子活动宣传底图。活动主题为 {subject}，参与人群为 {audience}，节庆节点为 {season}。画面活泼温暖，留出活动时间、地点和报名区域。", avoid: "避免具体文字、拥挤杂乱、人物肢体畸形。" }
+  ],
+  汽车出行: [
+    { scene: "车型官图", tags: ["车型", "官图"], size: "1536x1024", quality: "high", format: "jpeg", prompt: "生成一张汽车官方宣传图。车型定位为 {subject}，卖点为 {selling_points}，场景为 {scene}。车身比例准确，漆面反光真实，光线有方向感，构图适合官网与投放。", avoid: "避免车标错乱、车身结构变形、轮胎错误、过度科幻。" },
+    { scene: "用车生活场景图", tags: ["用车", "生活"], size: "1536x1024", format: "jpeg", prompt: "生成一张用车生活场景图。场景为 {scene}，目标用户为 {audience}，卖点为 {selling_points}。画面体现家庭出行、自驾或城市通勤，人物动作自然，车内空间合理。", avoid: "避免危险驾驶、人物肢体畸形、车内结构错误。" },
+    { scene: "汽车后市场服务图", tags: ["保养", "服务"], size: "1024x1536", format: "jpeg", prompt: "生成一张汽车后市场服务宣传图。服务项目为 {subject}，门店类型为 {scene}，卖点为 {selling_points}。画面展示规范工位、设备与技师操作，干净专业，留出套餐信息区域。", avoid: "避免危险操作、油污脏乱、虚假品牌标识、文字乱码。" }
+  ],
+  金融保险: [
+    { scene: "产品说明长图头图", tags: ["产品", "说明"], size: "1536x1024", format: "jpeg", prompt: "生成一张金融/保险产品说明长图头图底图。产品方向为 {subject}，目标人群为 {audience}，价值点为 {selling_points}。画面稳重可信，可包含家庭、城市、数据曲线抽象元素，留出标题区域。", avoid: "避免收益承诺、具体数字、真实机构标识、二维码。" },
+    { scene: "财富管理形象图", tags: ["财富", "形象"], size: "1536x1024", quality: "high", format: "jpeg", prompt: "生成一张财富管理品牌形象图。主题为 {subject}，客户画像为 {audience}，核心价值为 {selling_points}。画面克制高级，深色或中性色调，包含人物、空间或抽象结构，体现专业与长期主义。", avoid: "避免炫富表达、具体金额文字、虚假奖项、人物表情僵硬。" },
+    { scene: "理赔服务宣传图", tags: ["理赔", "服务"], size: "1024x1536", format: "jpeg", prompt: "生成一张保险理赔服务宣传底图。服务主题为 {subject}，服务对象为 {audience}，卖点为 {selling_points}。画面体现线上办理、顾问沟通或家庭保障场景，清晰可信，留出流程说明区域。", avoid: "避免承诺赔付、恐吓式画面、真实保单文字、乱码。" }
+  ],
+  法律政务: [
+    { scene: "合规培训封面", tags: ["合规", "培训"], size: "1536x1024", format: "jpeg", prompt: "生成一张企业合规培训封面底图。主题为 {subject}，受众为 {audience}，要点为 {selling_points}。画面庄重清晰，包含会议、文件、秩序化图形元素，留出标题与讲师区域。", avoid: "避免真实机关徽章、错误条文、恐吓式表达、文字乱码。" },
+    { scene: "政务办事指南图", tags: ["政务", "指南"], size: "1024x1536", format: "jpeg", prompt: "生成一张政务办事指南底图。事项为 {subject}，服务对象为 {audience}，流程亮点为 {selling_points}。画面整洁有序，包含服务窗口、办事场景或流程模块，留出步骤说明区域。", avoid: "避免真实公文、个人隐私信息、错误标识、文字乱码。" },
+    { scene: "公益普法活动图", tags: ["普法", "活动"], size: "1536x1024", format: "jpeg", prompt: "生成一张普法公益活动宣传图。活动主题为 {subject}，覆盖人群为 {audience}，形式为 {promotion}。画面亲和、有参与感，包含社区、讲座或咨询服务场景，留出时间地点区域。", avoid: "避免恐吓式画面、错误法律条文、真实个人信息、乱码文字。" }
+  ],
+  农业生鲜: [
+    { scene: "产地实景图", tags: ["产地", "实景"], size: "1536x1024", format: "jpeg", prompt: "生成一张农产品产地实景图。产品为 {product_name}，产地为 {region}，卖点为 {selling_points}。画面包含田园、果园、大棚或采收场景，阳光真实，体现新鲜与可溯源。", avoid: "避免作物形态错误、虚假地理标识、环境脏乱、过度艳丽。" },
+    { scene: "生鲜包装组合图", tags: ["生鲜", "包装"], size: "1024x1024", prompt: "生成一张生鲜包装组合陈列图。产品为 {product_name}，包装形式为 {material}，卖点为 {selling_points}。包装结构清晰，产品色泽自然，背景干净，适合电商首图与团购页。", avoid: "避免包装文字乱码、产品腐坏质感、颜色过度饱和。" },
+    { scene: "助农直播封面", tags: ["助农", "直播"], size: "1024x1536", format: "jpeg", prompt: "生成一张助农直播封面底图。产品为 {product_name}，产地故事为 {selling_points}，场景为 {scene}。画面质朴真实、有产地氛围，主体明确，留出标题与价格区域。", avoid: "避免具体价格文字、苦难化表达、虚假产地、人物表情夸张。" }
+  ],
+  SaaS科技: [
+    { scene: "功能模块拆解图", tags: ["功能", "模块"], size: "1536x1024", quality: "high", prompt: "生成一张 SaaS 产品功能模块拆解视觉图。产品方向为 {subject}，核心能力为 {selling_points}。画面以清晰模块、流程箭头和界面承载区组成，风格简洁现代，留出功能标注区域。", avoid: "避免具体界面文字、虚假 logo、过度炫光、模块拥挤。" },
+    { scene: "行业解决方案图", tags: ["行业", "方案"], size: "1536x1024", prompt: "生成一张 SaaS 行业解决方案配图。行业为 {subject}，解决痛点为 {selling_points}，客户类型为 {audience}。画面包含业务场景、数据流转与协作关系，专业可信。", avoid: "避免真实客户信息、虚假数据、界面文字乱码。" },
+    { scene: "产品更新公告图", tags: ["更新", "公告"], size: "1536x1024", prompt: "生成一张产品版本更新公告底图。更新主题为 {subject}，亮点功能为 {selling_points}，风格 {style}。画面现代、轻盈，包含抽象界面元素与渐变光，留出标题与要点区域。", avoid: "不要生成具体英文界面文案、虚假版本号、过度赛博朋克。" }
+  ],
+  运动户外: [
+    { scene: "运动装备功能图", tags: ["装备", "功能"], size: "1536x1024", quality: "high", prompt: "生成一张运动装备功能展示图。装备为 {product_name}，核心功能为 {selling_points}，材质为 {material}。画面突出结构、缓震、透气或防水细节，光影有力量感，适合电商与手册。", avoid: "避免装备结构错误、危险动作、虚假品牌标识、材质失真。" },
+    { scene: "户外场景种草图", tags: ["户外", "种草"], size: "1024x1536", format: "jpeg", prompt: "生成一张户外运动种草图。场景为 {scene}，目标人群为 {audience}，卖点为 {selling_points}。画面自然真实，装备使用合理，光线通透，适合社媒与品牌内容。", avoid: "避免危险行为、装备比例错误、背景人物崩坏。" },
+    { scene: "赛事活动海报", tags: ["赛事", "海报"], size: "1024x1536", format: "jpeg", prompt: "生成一张运动赛事活动海报底图。赛事主题为 {subject}，城市或地点为 {region}，活动机制为 {promotion}。画面有速度感和仪式感，留出赛事名称、时间与报名区域。", avoid: "避免具体文字、真实赛事标识、拥挤人群、危险动作。" }
+  ],
+  婚庆摄影: [
+    { scene: "婚礼现场氛围图", tags: ["婚礼", "现场"], size: "1536x1024", quality: "high", format: "jpeg", prompt: "生成一张婚礼现场氛围图。主题为 {subject}，风格 {style}，色彩 {color_palette}。花艺、灯串、仪式区与宾客层次清楚，光线温暖，适合婚礼策划方案与作品集。", avoid: "避免人物五官崩坏、装饰俗艳、空间透视错误、文字乱码。" },
+    { scene: "婚纱样片风格图", tags: ["婚纱", "样片"], size: "1024x1536", quality: "high", format: "jpeg", prompt: "生成一张婚纱写真样片风格图。场景为 {scene}，风格 {style}，情绪为 {selling_points}。人物姿态自然优雅，礼服结构清晰，光影高级，适合工作室样片与套餐展示。", avoid: "避免礼服结构错乱、肢体畸形、过度磨皮、低俗姿态。" },
+    { scene: "纪念日营销图", tags: ["纪念日", "营销"], size: "1024x1536", format: "jpeg", prompt: "生成一张婚纱摄影纪念日营销底图。节日或节点为 {season}，套餐卖点为 {selling_points}，目标人群为 {audience}。浪漫克制，留出活动信息与联系方式区域。", avoid: "避免具体价格文字、俗艳堆砌、二维码。" }
+  ],
+  招聘人力: [
+    { scene: "岗位招聘长图头图", tags: ["招聘", "岗位"], size: "1536x1024", format: "jpeg", prompt: "生成一张企业岗位招聘长图头图底图。岗位方向为 {subject}，企业气质为 {brand}，卖点为 {selling_points}。画面专业、有成长感，包含办公空间与团队氛围，留出岗位与联系方式区域。", avoid: "避免具体薪资文字、真实公司标识、过度鸡血、人物表情夸张。" },
+    { scene: "校招宣传图", tags: ["校招", "宣传"], size: "1024x1536", format: "jpeg", prompt: "生成一张校园招聘宣传底图。招聘方向为 {subject}，面向院系或人群为 {audience}，亮点为 {selling_points}。画面青春、专业、有未来感，留出宣讲时间地点区域。", avoid: "避免校徽乱码、虚假承诺、人群拥挤、文字乱码。" },
+    { scene: "雇主品牌形象图", tags: ["雇主品牌", "形象"], size: "1536x1024", format: "jpeg", prompt: "生成一张雇主品牌形象图。文化关键词为 {selling_points}，团队类型为 {audience}，场景为 {scene}。画面体现协作、培训与多元，真实自然，适合招聘官网与公众号。", avoid: "避免过度摆拍、虚假办公环境、人物手部畸形。" }
+  ],
+  跨境电商: [
+    { scene: "亚马逊 A+ 场景图", tags: ["A+", "场景"], size: "1536x1024", format: "jpeg", prompt: "生成一张亚马逊 A+ 页面场景图。产品为 {product_name}，使用场景为 {scene}，卖点为 {selling_points}，目标市场为 {region}。画面符合海外消费审美，突出使用价值，留出模块化文案区域。", avoid: "避免中文字符、错误英文堆砌、文化不匹配、产品结构改变。" },
+    { scene: "欧美家居使用图", tags: ["欧美", "家居"], size: "1536x1024", format: "jpeg", prompt: "生成一张面向欧美市场的家居产品使用图。产品为 {product_name}，户型与风格为 {style}，卖点为 {selling_points}。光线自然，空间真实，产品比例准确，适合 Listing 图组。", avoid: "避免与目标市场不符的装饰元素、产品变形、错误文字。" },
+    { scene: "独立站首屏 Banner", tags: ["独立站", "Banner"], size: "1536x1024", quality: "high", prompt: "生成一张跨境独立站首屏 Banner。品牌为 {brand}，主推产品为 {product_name}，主张为 {selling_points}。画面简洁高级，主体明确，右侧或左侧留出标题与按钮区域。", avoid: "不要生成具体文案、虚假品牌标识、过度堆元素。" }
+  ],
+  鞋包配饰: [
+    { scene: "鞋履系列陈列图", tags: ["鞋履", "陈列"], size: "1536x1024", quality: "high", prompt: "生成一张鞋履系列陈列图。产品为 {product_name}，系列主题为 {subject}，材质为 {material}。多款鞋型排列统一，配色协调，光影高级，适合系列上新与渠道招商。", avoid: "避免鞋型变形、左右脚错误、logo 乱码、配色漂移。" },
+    { scene: "包袋微距细节图", tags: ["包袋", "微距"], size: "1024x1536", quality: "high", prompt: "生成一张包袋微距细节图。产品为 {product_name}，材质为 {material}，工艺卖点为 {selling_points}。突出皮革纹理、缝线、五金与结构，光影精致，适合详情页局部展示。", avoid: "避免五金结构错误、缝线断裂感、过度反光、虚假品牌标识。" },
+    { scene: "配饰礼赠场景图", tags: ["配饰", "礼赠"], size: "1024x1536", prompt: "生成一张配饰礼赠场景图。产品为 {product_name}，节日为 {season}，目标人群为 {audience}。画面精致温暖，礼盒与配饰层次清楚，适合节庆活动与私域转化。", avoid: "避免首饰结构错乱、礼盒廉价、文字乱码、俗艳配色。" }
+  ],
+  美业个护: [
+    { scene: "护理服务流程图", tags: ["护理", "流程"], size: "1536x1024", format: "jpeg", prompt: "生成一张美容护理服务流程视觉底图。项目为 {subject}，门店风格为 {style}，卖点为 {selling_points}。画面干净精致，包含护理床、产品台与手法细节，留出流程说明区域。", avoid: "避免夸大效果、医疗暗示、环境脏乱、文字乱码。" },
+    { scene: "个护产品组合图", tags: ["个护", "组合"], size: "1024x1536", prompt: "生成一张个护产品组合陈列图。产品为 {product_name}，功效卖点为 {selling_points}，材质质感为 {material}。瓶身排列有层次，背景清爽，适合电商首图与套装页。", avoid: "避免瓶身变形、功效夸大、包装文字乱码。" },
+    { scene: "发型作品展示图", tags: ["发型", "作品"], size: "1024x1536", format: "jpeg", prompt: "生成一张美发作品展示图。发型风格为 {subject}，发质与色彩为 {color_palette}，目标客群为 {audience}。发丝质感真实，光线有层次，背景简洁，适合门店作品墙与社媒。", avoid: "避免发丝糊成一片、五官崩坏、过度滤镜。" }
+  ],
+  医疗器械: [
+    { scene: "设备使用场景图", tags: ["设备", "场景"], size: "1536x1024", quality: "high", format: "jpeg", prompt: "生成一张医疗设备使用场景图。设备为 {product_name}，使用科室为 {scene}，卖点为 {selling_points}。画面洁净专业，设备结构与操作姿态规范，适合官网与投标材料。", avoid: "避免夸大疗效、错误操作、血腥画面、真实医院标识。" },
+    { scene: "耗材包装陈列图", tags: ["耗材", "包装"], size: "1024x1024", prompt: "生成一张医疗耗材包装陈列图。产品为 {product_name}，规格与卖点为 {selling_points}，包装材质为 {material}。包装结构清晰、洁净可信，适合产品目录与展会。", avoid: "避免包装文字乱码、灭菌标识错误、结构不成立。" },
+    { scene: "健康检测服务图", tags: ["检测", "服务"], size: "1536x1024", format: "jpeg", prompt: "生成一张健康检测服务宣传图。服务项目为 {subject}，目标人群为 {audience}，优势为 {selling_points}。画面体现采样、检测与报告解读场景，专业且温和。", avoid: "避免虚假报告文字、夸大承诺、隐私信息、乱码。" }
+  ],
+  会展活动: [
+    { scene: "展台动线图", tags: ["展台", "动线"], size: "1536x1024", quality: "high", prompt: "生成一张展台动线与分区示意图。展商行业为 {subject}，展位面积为 {scene}，重点区域为 {selling_points}。包含主展示、洽谈、互动与储物分区，透视合理，适合搭建提案。", avoid: "避免结构不成立、通道堵塞、品牌文字乱码。" },
+    { scene: "峰会主视觉", tags: ["峰会", "主视觉"], size: "1536x1024", quality: "high", prompt: "生成一张行业峰会主视觉底图。主题为 {subject}，行业为 {audience}，调性为 {style}。画面有舞台、屏幕与城市或抽象科技元素，构图大气，留出标题与嘉宾信息区域。", avoid: "不要生成具体文字、真实主办标识、舞台透视混乱。" },
+    { scene: "活动现场氛围图", tags: ["现场", "氛围"], size: "1536x1024", format: "jpeg", prompt: "生成一张会展活动现场氛围图。活动类型为 {subject}，参与人群为 {audience}，场景为 {scene}。画面真实有秩序，人物动作自然，适合活动回顾与招商。", avoid: "避免人群脸部崩坏、隐私特写、空间拥挤混乱。" }
+  ],
+  音频播客: [
+    { scene: "播客录音室场景图", tags: ["录音室", "场景"], size: "1536x1024", format: "jpeg", prompt: "生成一张播客录音室场景图。节目方向为 {subject}，主持人气质为 {character}，氛围为 {style}。画面包含麦克风、声学板、桌面设备与氛围灯，专业且有温度。", avoid: "避免设备结构错误、线材混乱、人物五官崩坏。" },
+    { scene: "音频节目系列封面", tags: ["系列", "封面"], size: "1024x1024", prompt: "生成一组播客系列封面底图。主题为 {subject}，听众为 {audience}，视觉符号为 {selling_points}。方形构图，符号统一可延展，适合多期节目统一视觉。", avoid: "不要生成具体节目文字、水印、低对比、元素过多。" },
+    { scene: "有声书封面", tags: ["有声书", "封面"], size: "1024x1536", quality: "high", prompt: "生成一张有声书封面底图。作品类型为 {subject}，情绪为 {style}，核心意象为 {selling_points}。画面有叙事感与耳机/声波等声音暗示，留出书名区域。", avoid: "避免真实出版物封面、文字乱码、人物脸崩。" }
+  ],
+  本地门店营销: [
+    { scene: "门店开业海报", tags: ["开业", "海报"], size: "1024x1536", format: "jpeg", prompt: "生成一张本地门店开业宣传海报底图。门店类型为 {subject}，开业活动为 {promotion}，卖点为 {selling_points}。画面热闹但整洁，主体为门店或产品，留出时间地址与优惠区域。", avoid: "避免具体价格文字、虚假门头、二维码、环境脏乱。" },
+    { scene: "会员卡宣传图", tags: ["会员", "宣传"], size: "1024x1536", prompt: "生成一张门店会员卡宣传底图。服务类型为 {subject}，权益亮点为 {selling_points}，目标客群为 {audience}。画面精致有质感，卡片或会员场景清楚，留出权益说明区域。", avoid: "避免具体金额文字、虚假资质、俗艳配色。" },
+    { scene: "到店体验场景图", tags: ["体验", "到店"], size: "1536x1024", format: "jpeg", prompt: "生成一张门店到店体验场景图。门店类型为 {subject}，体验项目为 {selling_points}，场景为 {scene}。画面真实自然，有服务细节与顾客互动，适合团购与点评平台。", avoid: "避免顾客隐私、人物手部畸形、空间杂乱。" }
+  ],
+  出版内容: [
+    { scene: "图书封面氛围底图", tags: ["图书", "封面"], size: "1024x1536", quality: "high", prompt: "生成一张图书封面氛围底图。题材为 {subject}，读者为 {audience}，核心意象为 {selling_points}。画面有编辑设计感，构图竖向，留出书名、作者与出版社区域。", avoid: "不要生成具体书名文字、盗用真实封面、元素堆叠。" },
+    { scene: "长文专题头图", tags: ["专题", "头图"], size: "1536x1024", format: "jpeg", prompt: "生成一张长文专题头图底图。专题为 {subject}，观点为 {selling_points}，风格 {style}。画面有编辑感与叙事性，主体明确，留出标题区域，适合公众号与媒体平台。", avoid: "避免具体文字、侵权图片素材、过度广告感。" },
+    { scene: "知识手册插图", tags: ["手册", "插图"], size: "1536x1024", prompt: "生成一张知识手册内页插图。主题为 {subject}，说明要点为 {selling_points}，画风 {style}。画面简洁、有信息层级，包含示意图形或场景，适合排版进图文版式。", avoid: "避免文字乱码、图示逻辑错误、细节过密。" }
+  ],
+  手作文创: [
+    { scene: "手作工艺特写", tags: ["手作", "特写"], size: "1024x1536", quality: "high", format: "jpeg", prompt: "生成一张手作工艺特写图。作品为 {product_name}，材质与工艺为 {material}，卖点为 {selling_points}。突出手工痕迹、纹理与温度感，光线柔和，背景质朴干净。", avoid: "避免材质失真、工业塑料感、结构不成立、文字乱码。" },
+    { scene: "市集摊位氛围图", tags: ["市集", "氛围"], size: "1536x1024", format: "jpeg", prompt: "生成一张文创市集摊位氛围图。摊位主题为 {subject}，风格 {style}，商品类型为 {product_name}。画面有生活气息与陈列美感，人物自然，适合品牌故事与社媒。", avoid: "避免摊位杂乱、文字乱码、人物脸部崩坏。" },
+    { scene: "文创礼盒陈列图", tags: ["文创", "礼盒"], size: "1024x1536", prompt: "生成一张文创礼盒陈列图。主题为 {subject}，节日为 {season}，产品组合为 {product_name}。包装、卡片、周边层次清楚，风格统一，适合节庆礼赠与团购。", avoid: "避免包装文字乱码、元素堆砌、比例错误。" }
+  ],
+  公益组织: [
+    { scene: "项目成果展示图", tags: ["项目", "成果"], size: "1536x1024", format: "jpeg", prompt: "生成一张公益项目成果展示图。项目方向为 {subject}，受益群体为 {audience}，成果为 {selling_points}。画面真实温暖、克制不煽情，包含社区、环境或教育场景。", avoid: "避免苦难消费、真实个人信息、夸大承诺。" },
+    { scene: "志愿者招募图", tags: ["志愿者", "招募"], size: "1024x1536", format: "jpeg", prompt: "生成一张志愿者招募宣传底图。服务方向为 {subject}，招募人群为 {audience}，参与价值为 {selling_points}。画面积极、有行动感，留出报名方式区域。", avoid: "避免具体二维码、组织标识错误、人物表情夸张。" },
+    { scene: "公益捐赠公示图", tags: ["捐赠", "公示"], size: "1536x1024", prompt: "生成一张公益捐赠公示底图。项目为 {subject}，合作方为 {brand}，用途为 {selling_points}。画面简洁庄重，留出数据与说明区域，适合官网与公众号公示。", avoid: "不要生成具体金额文字、虚假公章、乱码。" }
+  ],
+  潮玩玩具: [
+    { scene: "盲盒开箱图", tags: ["盲盒", "开箱"], size: "1024x1536", quality: "high", prompt: "生成一张潮玩盲盒开箱图。产品为 {product_name}，系列为 {subject}，卖点为 {selling_points}。画面包含外盒、内托与公仔主体，材质与涂装真实，氛围年轻。", avoid: "避免盗用知名 IP、盒身文字乱码、结构变形。" },
+    { scene: "公仔多角度展示", tags: ["公仔", "角度"], size: "1536x1024", quality: "high", prompt: "生成一张潮玩公仔多角度展示图。角色为 {character}，风格 {style}，材质为 {material}。同一公仔的正面、侧面与背面细节一致，光影统一，适合详情页与预售。", avoid: "避免各角度造型不一致、涂装漂移、比例错误。" },
+    { scene: "系列全家福海报", tags: ["系列", "海报"], size: "1536x1024", format: "jpeg", prompt: "生成一张潮玩系列全家福底图。系列主题为 {subject}，角色数量与阵容为 {selling_points}，色彩 {color_palette}。角色排布有节奏，主体清晰，留出系列名与发售信息区域。", avoid: "避免角色特征混乱、文字乱码、画面拥挤。" }
+  ],
+  珠宝婚戒: [
+    { scene: "钻戒微距棚拍", tags: ["钻戒", "微距"], size: "1024x1536", quality: "high", prompt: "生成一张钻戒微距棚拍图。产品为 {product_name}，材质为 {material}，卖点为 {selling_points}。突出爪镶结构、切面火彩与戒圈打磨，光线精准受控，背景高级简洁。", avoid: "避免钻石数量错误、戒圈变形、过曝反光、虚假品牌标识。" },
+    { scene: "项链佩戴效果图", tags: ["项链", "佩戴"], size: "1024x1536", format: "jpeg", prompt: "生成一张项链佩戴效果图。产品为 {product_name}，风格 {style}，目标人群 {audience}。颈部与锁骨光影自然，链条结构清晰，饰品比例准确，适合详情页与种草。", avoid: "避免链条断裂感、首饰变形、人物皮肤失真。" },
+    { scene: "高级珠宝品牌海报", tags: ["珠宝", "海报"], size: "1024x1536", quality: "high", format: "jpeg", prompt: "生成一张高级珠宝品牌海报底图。主题为 {subject}，色彩 {color_palette}，情绪为 {style}。画面以珠宝为主体，搭配丝绸、石材或极简空间，留出品牌与文案区域。", avoid: "避免俗艳堆砌、虚假 logo、珠宝结构错误。" }
+  ],
+  制造加工: [
+    { scene: "零部件细节图", tags: ["零部件", "细节"], size: "1536x1024", quality: "high", prompt: "生成一张精密零部件细节图。零件为 {product_name}，工艺为 {material}，精度卖点为 {selling_points}。金属质感与加工纹理真实，背景工业灰，光影克制，适合产品手册。", avoid: "避免结构不可能、毛刺错乱、过曝、文字乱码。" },
+    { scene: "自动化产线图", tags: ["产线", "自动化"], size: "1536x1024", format: "jpeg", prompt: "生成一张自动化产线形象图。产线类型为 {subject}，核心优势为 {selling_points}，行业为 {audience}。画面包含机械臂、传送、检测工位与看板，整洁高效，适合官网与招商。", avoid: "避免危险操作、设备结构错乱、工人防护缺失。" },
+    { scene: "OEM 代工实力图", tags: ["代工", "实力"], size: "1536x1024", prompt: "生成一张 OEM/ODM 代工实力展示底图。产品为 {product_name}，产能与工艺为 {selling_points}，目标客户为 {audience}。画面体现车间规模、质检流程与打包出货，专业可信。", avoid: "避免虚假认证标识、危险场景、真实客户信息。" }
+  ],
+  能源环保: [
+    { scene: "储能设备场景图", tags: ["储能", "设备"], size: "1536x1024", quality: "high", format: "jpeg", prompt: "生成一张储能/新能源设备场景图。设备为 {product_name}，应用场景为 {scene}，卖点为 {selling_points}。画面包含机柜、电池组或光伏组件，结构清晰，光线真实，科技感克制。", avoid: "避免电路错误、危险施工、过度科幻、虚假数据文字。" },
+    { scene: "低碳园区宣传图", tags: ["低碳", "园区"], size: "1536x1024", format: "jpeg", prompt: "生成一张低碳园区宣传图。园区类型为 {subject}，绿色举措为 {selling_points}，地区为 {region}。画面包含光伏屋顶、绿化、慢行系统与智慧管理元素，清新可信。", avoid: "避免比例失真、虚假标识、过度未来感。" },
+    { scene: "环保公益行动图", tags: ["环保", "公益"], size: "1024x1536", format: "jpeg", prompt: "生成一张环保公益行动底图。行动主题为 {subject}，参与人群为 {audience}，目标为 {selling_points}。画面积极、干净，包含回收、植树或清洁场景，留出活动信息区域。", avoid: "避免垃圾堆脏乱、苦难化表达、真实个人信息。" }
+  ],
+  物流仓储: [
+    { scene: "分拣中心形象图", tags: ["分拣", "形象"], size: "1536x1024", format: "jpeg", prompt: "生成一张物流分拣中心形象图。业务为 {subject}，效率卖点为 {selling_points}，地区为 {region}。画面包含分拣线、包裹流、扫码工位与数据看板，整洁有序。", avoid: "避免危险操作、货架结构错乱、真实运单信息。" },
+    { scene: "冷链仓储图", tags: ["冷链", "仓储"], size: "1536x1024", quality: "high", format: "jpeg", prompt: "生成一张冷链仓储场景图。品类为 {subject}，温控卖点为 {selling_points}，设施为 {scene}。画面有冷库门、货架、托盘与温控设备，冷色调真实，适合招商与官网。", avoid: "避免设备错误、结霜过度、人员防护不当。" },
+    { scene: "跨境物流时效图", tags: ["跨境", "时效"], size: "1536x1024", prompt: "生成一张跨境物流时效宣传底图。线路为 {region}，服务卖点为 {selling_points}，运输方式为 {subject}。画面包含港口、货机、集装箱或清关场景，层次清楚，留出时效说明区域。", avoid: "不要生成具体时效数字、虚假船公司标识、文字乱码。" }
+  ],
+  房产物业: [
+    { scene: "物业服务场景图", tags: ["物业", "服务"], size: "1536x1024", format: "jpeg", prompt: "生成一张物业服务场景图。服务项目为 {subject}，服务对象为 {audience}，卖点为 {selling_points}。画面包含秩序维护、保洁、维修或客服场景，干净专业有温度。", avoid: "避免制服标识错误、环境脏乱、隐私信息、人物表情夸张。" },
+    { scene: "园区环境提升图", tags: ["园区", "环境"], size: "1536x1024", quality: "high", format: "jpeg", prompt: "生成一张园区环境提升效果图。园区类型为 {subject}，改造重点为 {selling_points}，风格 {style}。画面展示绿化、步道、照明与公共设施，真实宜居。", avoid: "避免植物比例异常、空间混乱、过度奢华。" },
+    { scene: "节庆社区活动图", tags: ["社区", "节庆"], size: "1024x1536", format: "jpeg", prompt: "生成一张社区节庆活动宣传底图。节日为 {season}，活动内容为 {promotion}，参与人群为 {audience}。画面温暖热闹有秩序，留出活动通知区域。", avoid: "避免具体文字、拥挤混乱、隐私暴露。" }
+  ],
+  节庆活动: [
+    { scene: "中秋礼盒营销图", tags: ["中秋", "礼盒"], size: "1024x1536", format: "jpeg", prompt: "生成一张中秋礼赠营销底图。品牌为 {brand}，产品为 {product_name}，卖点为 {selling_points}。画面有月色、桂花、团圆意象但不过度俗艳，礼盒层次清楚，留出文案区域。", avoid: "避免错误节日元素、礼盒文字乱码、俗艳堆砌。" },
+    { scene: "周年庆主视觉", tags: ["周年庆", "主视觉"], size: "1536x1024", quality: "high", prompt: "生成一张品牌周年庆主视觉。品牌为 {brand}，周年主题为 {subject}，活动机制为 {promotion}。画面有仪式感与延展性，主体明确，留出年份与主题文字区域。", avoid: "不要生成具体年份文字、虚假 logo、元素过密。" },
+    { scene: "春节终端陈列图", tags: ["春节", "陈列"], size: "1536x1024", format: "jpeg", prompt: "生成一张春节终端陈列图。品类为 {subject}，陈列场景为 {scene}，卖点为 {selling_points}。画面有年味氛围，商品陈列整齐，适合门店与商超执行参考。", avoid: "避免错误生肖、文字乱码、杂乱堆货。" }
+  ],
+  直播电商: [
+    { scene: "直播间场景搭建图", tags: ["直播间", "搭建"], size: "1536x1024", format: "jpeg", prompt: "生成一张直播间场景搭建效果图。品类为 {subject}，风格 {style}，色彩 {color_palette}。画面包含背景板、货架、灯光、提词屏与主播位，空间关系清楚，适合布置参考。", avoid: "避免电线杂乱、文字乱码、空间透视错误。" },
+    { scene: "口播脚本配图", tags: ["口播", "配图"], size: "1024x1536", format: "jpeg", prompt: "生成一张直播口播配图底图。产品为 {product_name}，卖点为 {selling_points}，目标人群 {audience}。画面突出产品使用效果，留出要点文字区域，适合切片封面。", avoid: "避免具体文字、虚假效果对比、产品变形。" },
+    { scene: "直播间福利贴片底图", tags: ["福利", "贴片"], size: "1024x1024", prompt: "生成一张直播间福利贴片底图。活动机制为 {promotion}，品类为 {subject}，色彩 {color_palette}。画面有促销氛围但干净，主体区域留白便于叠加文字与价格。", avoid: "避免具体价格文字、廉价爆炸贴、二维码。" }
+  ],
+  APP产品: [
+    { scene: "功能界面展示图", tags: ["界面", "功能"], size: "1536x1024", quality: "high", prompt: "生成一张 APP 功能界面展示视觉图。产品方向为 {subject}，核心功能为 {selling_points}，平台为 {platform}。画面以手机承载区加功能氛围元素组成，简洁现代，留出标题区域。", avoid: "不要生成具体 UI 文字、虚假手机品牌、过密元素。" },
+    { scene: "下载转化页配图", tags: ["下载", "转化"], size: "1024x1536", prompt: "生成一张 APP 下载转化页配图。产品为 {subject}，用户收益为 {selling_points}，目标用户为 {audience}。画面轻快有吸引力，留出下载按钮与要点区域。", avoid: "避免具体按钮文字、虚假评分、过度渐变。" },
+    { scene: "产品演示场景图", tags: ["演示", "场景"], size: "1536x1024", format: "jpeg", prompt: "生成一张 APP 使用场景演示图。场景为 {scene}，用户为 {audience}，卖点为 {selling_points}。画面体现真实使用瞬间，人物与设备关系自然，适合官网与投放。", avoid: "避免人物手部畸形、界面乱码、场景不真实。" }
+  ],
+  包装设计: [
+    { scene: "包装结构示意", tags: ["结构", "示意"], size: "1024x1536", quality: "high", prompt: "生成一张产品包装结构示意图。产品为 {product_name}，包装形式为 {material}，卖点为 {selling_points}。展示盒型、内托与开启方式，结构成立可落地，背景干净，适合提案。", avoid: "避免结构不成立、刀线错误、文字乱码、盗用品牌。" },
+    { scene: "系列包装陈列", tags: ["系列", "陈列"], size: "1536x1024", quality: "high", format: "jpeg", prompt: "生成一张系列包装陈列图。品牌为 {brand}，品类为 {subject}，色彩 {color_palette}。多个 SKU 排列统一有节奏，材质与印刷质感真实，适合货架效果与招商。", avoid: "避免 SKU 外观不一致、包装文字乱码、比例错误。" },
+    { scene: "可持续包装概念", tags: ["环保", "概念"], size: "1024x1536", prompt: "生成一张可持续包装概念图。产品为 {product_name}，材质为 {material}，环保理念为 {selling_points}。画面体现再生纸、单材化或可回收结构，质感质朴高级。", avoid: "避免虚假环保认证、结构不合理、文字乱码。" }
+  ],
+  个人IP: [
+    { scene: "个人主页封面图", tags: ["主页", "封面"], size: "1536x1024", quality: "high", format: "jpeg", prompt: "生成一张个人 IP 主页封面图。人物为 {character}，领域为 {subject}，标签为 {selling_points}。画面专业亲和，人物与抽象元素搭配，左右留出简介区域。", avoid: "避免虚假头衔、过度磨皮、五官崩坏、文字乱码。" },
+    { scene: "直播访谈场景图", tags: ["访谈", "场景"], size: "1536x1024", format: "jpeg", prompt: "生成一张个人 IP 访谈/直播场景图。人物为 {character}，主题为 {subject}，氛围为 {style}。画面包含麦克风、书籍、设备或工作室环境，真实有质感。", avoid: "避免设备错误、人物表情僵硬、背景杂乱。" },
+    { scene: "方法论图解底图", tags: ["方法论", "图解"], size: "1024x1536", prompt: "生成一张个人方法论图解底图。主题为 {subject}，方法要点为 {selling_points}，受众为 {audience}。画面模块清晰、层级分明，留出文字说明区域，适合知识卡片。", avoid: "不要生成具体小字、图标风格混乱、信息过密。" }
+  ]
 };
+
+const industryTemplateSeedPack2: Record<string, TemplateSeed[]> = {
+  电商零售: [
+    { scene: "平台活动报名主图", tags: ["活动", "报名"], size: "1024x1024", format: "jpeg", prompt: "生成一张电商平台活动报名主图。产品为 {product_name}，活动机制为 {promotion}，价格带 {price_tier}。主体占画面 70%，背景用品牌色块与节日元素做层次，上方留出活动名称与利益点区域。", avoid: "避免具体价格数字、平台 logo 变形、元素堆叠遮挡主体。" },
+    { scene: "私域社群秒杀图", tags: ["私域", "秒杀"], size: "1024x1536", format: "jpeg", prompt: "生成一张私域社群秒杀海报底图。产品为 {product_name}，卖点为 {selling_points}，面向 {audience}。画面信息层级清晰：主体居中、边缘留出价格与倒计时区域，配色紧凑有紧迫感。", avoid: "不要生成具体金额与倒计时文字、二维码、廉价爆炸贴。" },
+    { scene: "售后与保修说明图", tags: ["售后", "说明"], size: "1536x1024", prompt: "生成一张商品售后与保修说明底图。产品为 {product_name}，服务承诺为 {selling_points}。画面干净可信，产品与工具、包装、客服场景组合，留出流程与条款排版区域。", avoid: "避免夸大承诺、虚假认证、真实客服信息、文字乱码。" },
+    { scene: "多尺寸主图适配组", tags: ["多尺寸", "适配"], size: "1536x1024", prompt: "生成一张可裁切的多尺寸电商主图底图。产品为 {product_name}，卖点为 {selling_points}。主体位于画面中心 1:1 安全区，四周延续场景与留白，方便裁成 1:1、3:4、16:9 使用。", avoid: "避免关键主体贴近边缘、文字元素、复杂背景干扰裁切。" }
+  ],
+  短剧影视: [
+    { scene: "预告片封面", tags: ["预告", "封面"], size: "1024x1536", format: "jpeg", prompt: "生成一张短剧预告片封面。题材为 {subject}，钩子为 {selling_points}。画面呈现关键冲突瞬间，人物表情与视线形成张力，冷调硬光，上方留出平台角标与标题区域。", avoid: "避免剧透式画面、五官崩坏、文字乱码、过度暗部。" },
+    { scene: "角色关系九宫格", tags: ["关系", "九宫格"], size: "1536x1024", prompt: "生成一张短剧角色关系九宫格底图。故事为 {subject}，核心关系为 {selling_points}。九格分别呈现不同人物与情绪特写，同一角色形象保持一致，格与格之间留细缝，适合做人物关系图。", avoid: "避免同一角色脸不一致、格线错乱、人物过多导致辨识度低。" },
+    { scene: "场景概念气氛图", tags: ["场景", "概念"], size: "1536x1024", format: "jpeg", prompt: "生成一张短剧场景概念气氛图。场景为 {scene}，时代与地区为 {region}，情绪为 {style}。明确光源方向、色温与空间纵深，含关键道具与人物剪影，适合美术与摄影沟通。", avoid: "避免时代穿帮、空间逻辑错误、道具不合理、字幕文字。" },
+    { scene: "竖屏切片封面", tags: ["切片", "竖屏"], size: "1024x1536", format: "jpeg", prompt: "生成一张短剧切片竖屏封面底图。剧情钩子为 {selling_points}，主角为 {character}。人物半身靠下、上方大面积留白便于叠加大标题，情绪放大、对比强化，适合信息流投放。", avoid: "不要生成标题文字、避免人物脸部被裁切、画面过暗。" }
+  ],
+  自媒体内容: [
+    { scene: "口播视频背景图", tags: ["口播", "背景"], size: "1536x1024", prompt: "生成一张口播视频背景底图。内容方向为 {subject}，风格 {style}，色彩 {color_palette}。背景有书桌、陈列架或抽象图形层次，中间偏侧留出人物站位，光柔和不抢脸。", avoid: "避免文字乱码、背景过亮、元素遮挡人物、虚假品牌标识。" },
+    { scene: "九宫格朋友圈图", tags: ["朋友圈", "九宫格"], size: "1536x1024", prompt: "生成一组朋友圈九宫格配图。主题为 {subject}，受众为 {audience}。九张图主题统一、色调一致，分别覆盖产品、场景、细节、人物和数据感画面，适合私域发布。", avoid: "避免每格风格漂移、文字乱码、主体被裁切。" },
+    { scene: "数据长图首屏", tags: ["数据", "长图"], size: "1024x1536", prompt: "生成一张数据长图首屏底图。主题为 {subject}，关键结论为 {selling_points}。画面上部放大标题与结论，下部留出图表与数据模块区域，配色克制专业。", avoid: "不要生成具体数值和乱码文字、图表过密、颜色刺眼。" },
+    { scene: "账号主页横幅", tags: ["主页", "横幅"], size: "1536x1024", prompt: "生成一张账号主页横幅底图。账号定位为 {subject}，受众为 {audience}，风格 {style}。左右分区明确，一侧主体图形、一侧留白放简介，整体可读性强。", avoid: "避免文字乱码、过度装饰、主体在两侧被平台裁切。" }
+  ],
+  人物图像: [
+    { scene: "室内窗光人像", tags: ["窗光", "人像"], size: "1024x1536", quality: "high", format: "jpeg", prompt: "生成一张室内窗光人像。人物为 {character}，服装风格 {style}，场景为 {scene}。侧逆窗光塑造轮廓，肤色通透，背景虚化柔和，半身构图，适合个人主页与写真样片。", avoid: "避免真实明星脸、五官崩坏、手部畸形、过度磨皮、低俗姿态。" },
+    { scene: "职业形象九宫格", tags: ["职业", "九宫格"], size: "1536x1024", quality: "high", prompt: "生成一组职业形象九宫格。人物为 {character}，领域为 {subject}，气质为 {selling_points}。九格包含正面、侧脸、半身、环境、细节与情绪特写，同一人物形象统一，适合个人 IP 素材。", avoid: "避免同一人物脸型漂移、服装变化、过度滤镜。" },
+    { scene: "户外自然光写真", tags: ["户外", "写真"], size: "1024x1536", quality: "high", format: "jpeg", prompt: "生成一张户外自然光写真。人物为 {character}，场景为 {scene}，情绪为 {style}。逆光或侧光塑造发丝光，环境与人物比例自然，色彩通透，适合社媒发布和写真套餐。", avoid: "避免面部过曝、肢体比例异常、手部畸形、背景杂乱。" },
+    { scene: "时装感人物大片", tags: ["时装", "大片"], size: "1024x1536", quality: "high", format: "jpeg", prompt: "生成一张时装感人物大片。人物为 {character}，服装与造型为 {style}，场景为 {scene}。硬光或棚拍光塑造结构，姿态有力量感，服装版型与面料清晰，适合品牌与杂志风内容。", avoid: "避免服装结构错乱、肢体畸形、低俗姿态、侵权品牌标识。" }
+  ],
+  二次元头像: [
+    { scene: "国风二次元头像", tags: ["国风", "头像"], size: "1024x1024", prompt: "生成一张国风二次元头像。角色为 {character}，气质为 {selling_points}，画风 {style}。服饰与发饰有东方元素，色彩清雅，背景简洁，五官精致可小尺寸识别。", avoid: "避免历史元素乱搭、五官崩坏、发型漂移、低清晰度。" },
+    { scene: "赛博二次元头像", tags: ["赛博", "头像"], size: "1024x1024", quality: "high", prompt: "生成一张赛博风二次元头像。角色为 {character}，关键词为 {selling_points}，色彩 {color_palette}。霓虹与金属质感，面部可读，轮廓清晰，背景虚化处理。", avoid: "避免真实明星脸、特效遮挡五官、过暗、侵权元素。" },
+    { scene: "宠物拟人头像", tags: ["宠物", "头像"], size: "1024x1024", prompt: "生成一张宠物拟人二次元头像。角色原型为 {character}，性格为 {selling_points}，风格 {style}。保留宠物特征（耳朵、毛色、斑纹），拟人化比例协调，头像构图清晰。", avoid: "避免宠物特征丢失、五官崩坏、过度拟人失真。" },
+    { scene: "情侣配对头像", tags: ["情侣", "头像"], size: "1024x1024", prompt: "生成一对可拼接的二次元情侣头像。角色关系为 {selling_points}，风格 {style}，色彩 {color_palette}。两张头像构图对称、视线互指，色调一致，适合做社交头像配对。", avoid: "避免两人画风不一致、角色年龄不当、低俗表达。" }
+  ],
+  潮流社交: [
+    { scene: "分享卡片底图", tags: ["分享", "卡片"], size: "1024x1536", prompt: "生成一张社交分享卡片底图。主题为 {subject}，情绪为 {style}，色彩 {color_palette}。画面有明确视觉中心与大面积留白，适合后期放入文字和头像。", avoid: "不要生成具体文字、二维码、元素过密、低清晰度。" },
+    { scene: "活动预热倒计时图", tags: ["预热", "倒计时"], size: "1024x1536", format: "jpeg", prompt: "生成一张活动预热倒计时底图。活动为 {promotion}，主题为 {subject}，目标人群为 {audience}。画面有节奏感的图形与光效，中部留出数字区域。", avoid: "不要生成具体数字文字、虚假品牌标识、杂乱元素。" },
+    { scene: "图文号头图", tags: ["图文", "头图"], size: "1536x1024", format: "jpeg", prompt: "生成一张图文账号头图底图。内容领域为 {subject}，风格 {style}。主体与背景层次分明，一侧留标题，一侧放人物或产品，适合公众号与小红书首图。", avoid: "避免文字乱码、侵权元素、主体被裁切。" },
+    { scene: "短视频封面组图", tags: ["短视频", "封面组"], size: "1024x1536", format: "jpeg", prompt: "生成一组统一风格的短视频封面底图。内容方向为 {subject}，情绪为 {style}。多张封面保持同一配色与版式，主体位置一致，便于账号主页整齐展示。", avoid: "不要生成标题文字、避免每张风格不一致、低对比。" }
+  ],
+  虚拟IP: [
+    { scene: "IP 三视图设定", tags: ["三视图", "设定"], size: "1536x1024", quality: "high", prompt: "生成一张虚拟 IP 三视图设定稿。角色为 {character}，人设为 {selling_points}，风格 {style}。正、侧、背视图比例统一，服装与配饰细节一致，浅色背景、清晰线稿与配色标注区。", avoid: "避免各视图细节不一致、比例失衡、配饰漂移、文字乱码。" },
+    { scene: "直播开场画面", tags: ["开场", "直播"], size: "1536x1024", prompt: "生成一张虚拟主播直播开场画面。角色为 {character}，主题为 {subject}，色彩 {color_palette}。人物居中偏下，上方留标题与弹幕区，背景有舞台灯光与世界观元素。", avoid: "不要生成具体文字、人物被界面元素遮挡、侵权角色。" },
+    { scene: "IP 联名物料图", tags: ["联名", "物料"], size: "1536x1024", format: "jpeg", prompt: "生成一张虚拟 IP 联名物料底图。IP 为 {character}，联名对象为 {brand}，主题为 {subject}。画面融合双方视觉元素，产品与角色互动自然，留出 logo 与活动信息区域。", avoid: "避免真实品牌标识乱码、元素冲突、角色比例错误。" },
+    { scene: "表情动效帧图", tags: ["表情", "帧"], size: "1536x1024", prompt: "生成一组虚拟 IP 表情动效关键帧。角色为 {character}，情绪包含 {action}，风格 {style}。同一角色多帧动作连贯，轮廓一致，适合做成动图与直播互动素材。", avoid: "避免角色形象漂移、肢体畸形、帧间风格不一致。" }
+  ],
+  餐饮茶饮: [
+    { scene: "门店排队氛围图", tags: ["排队", "氛围"], size: "1536x1024", format: "jpeg", prompt: "生成一张餐饮门店排队氛围图。门店类型为 {subject}，卖点为 {selling_points}。画面有人气但秩序良好，门头与橱窗清晰，暖光突出烟火气，适合本地生活平台。", avoid: "避免虚假店名文字、人群脸部崩坏、环境脏乱。" },
+    { scene: "季节限定菜单图", tags: ["季节", "菜单"], size: "1024x1536", format: "jpeg", prompt: "生成一张季节限定菜单底图。季节为 {season}，主推产品为 {product_name}，卖点为 {selling_points}。画面结合当季元素与产品，留出菜品名与价格区域，色调清新。", avoid: "不要生成具体价格与乱码文字、食材不真实。" },
+    { scene: "后厨标准化图", tags: ["后厨", "标准"], size: "1536x1024", prompt: "生成一张后厨标准化作业图。品类为 {subject}，标准要点为 {selling_points}。画面整洁、设备规范、人员穿着符合卫生要求，适合加盟培训与品牌背书。", avoid: "避免危险操作、卫生不达标画面、真实品牌标识。" },
+    { scene: "外卖打包展示图", tags: ["外卖", "打包"], size: "1024x1024", prompt: "生成一张外卖打包与包装展示图。产品为 {product_name}，包装形式为 {material}，卖点为 {selling_points}。包装完整、封口清晰、餐品不渗漏，背景干净，适合详情页与平台图。", avoid: "避免包装文字乱码、餐品洒漏、塑料感过强。" }
+  ],
+  品牌广告: [
+    { scene: "品牌色视觉系统图", tags: ["视觉系统", "品牌色"], size: "1536x1024", quality: "high", prompt: "生成一张品牌视觉系统展示图。品牌为 {brand}，色彩为 {color_palette}，调性为 {style}。画面包含主色块、辅助图形、材质样片与产品应用，构图规整，适合品牌提案。", avoid: "避免生成具体 logo 文字、色彩脏乱、元素堆砌。" },
+    { scene: "产品广告分镜", tags: ["分镜", "广告"], size: "1536x1024", prompt: "生成一张产品广告分镜板。产品为 {product_name}，诉求为 {selling_points}，风格 {style}。画面按 3 到 4 个镜头呈现产品出场、特写、使用与收尾，分格清楚，适合拍摄沟通。", avoid: "避免产品外观不一致、分格混乱、文字乱码。" },
+    { scene: "品牌公益形象图", tags: ["公益", "形象"], size: "1536x1024", format: "jpeg", prompt: "生成一张品牌公益形象图。品牌为 {brand}，公益方向为 {subject}，理念为 {selling_points}。画面温暖真实，人物与场景自然，适合 CSR 传播与官网。", avoid: "避免苦难化表达、虚假承诺、隐私信息。" },
+    { scene: "户外媒体投放图", tags: ["户外", "投放"], size: "1536x1024", prompt: "生成一张户外媒体投放效果图。品牌为 {brand}，媒介类型为 {platform}，主张为 {selling_points}。画面展示实际投放场景（地铁、楼宇、商圈大屏），主体清晰远距离可识别。", avoid: "避免错误地标、虚假品牌文字、透视错误。" }
+  ],
+  漫画动漫: [
+    { scene: "漫画封面人物特写", tags: ["封面", "特写"], size: "1024x1536", quality: "high", prompt: "生成一张漫画封面人物特写。作品主题为 {subject}，角色为 {character}，情绪为 {style}。人物占画面主体，背景用世界观元素虚化衬托，顶部留标题区，线条干净。", avoid: "避免人物五官崩坏、线条脏乱、背景抢主体。" },
+    { scene: "黑白线稿场景", tags: ["线稿", "场景"], size: "1536x1024", prompt: "生成一张漫画黑白线稿场景。场景为 {scene}，氛围为 {style}。透视准确，线条粗细有层次，网点与留白运用得当，可直接用于分镜背景。", avoid: "避免透视错误、线条糊成一片、细节过密。" },
+    { scene: "角色服装分解图", tags: ["服装", "分解"], size: "1536x1024", prompt: "生成一张角色服装分解设定。角色为 {character}，服装类型为 {material}，风格 {style}。展示外层、内搭、配饰与鞋履分解，标注区域留白，适合制作参考与周边开发。", avoid: "不要生成具体标注文字、服装结构不成立、比例错误。" },
+    { scene: "漫画章节封面", tags: ["章节", "封面"], size: "1024x1536", prompt: "生成一张漫画章节封面底图。剧情段落为 {subject}，关键情绪为 {selling_points}，画风 {style}。画面像剧照式构图，保留章节号区域，色彩有情绪倾向。", avoid: "避免具体文字乱码、角色不一致、构图拥挤。" }
+  ],
+  游戏美术: [
+    { scene: "角色皮肤设计稿", tags: ["皮肤", "设计"], size: "1024x1536", quality: "high", prompt: "生成一张游戏角色皮肤设计稿。角色为 {character}，皮肤主题为 {subject}，元素为 {selling_points}。展示全身造型、材质分区与特效方向，背景简洁，适合美术评审。", avoid: "避免装备结构混乱、配色脏乱、比例失衡。" },
+    { scene: "副本场景气氛图", tags: ["副本", "气氛"], size: "1536x1024", quality: "high", prompt: "生成一张游戏副本场景气氛图。世界观为 {subject}，场景类型为 {scene}，氛围为 {style}。明确玩家动线、战斗区域与光源，色彩统一，适合关卡美术方向沟通。", avoid: "避免空间逻辑混乱、元素堆砌、过度暗部。" },
+    { scene: "UI 图标套组", tags: ["UI", "图标"], size: "1024x1024", prompt: "生成一组游戏 UI 功能图标。主题为 {subject}，风格 {style}，材质为 {material}。图标统一尺寸与描边，图形语义清晰，深浅两套底色可读性都良好。", avoid: "避免语义不明、风格不统一、细节过密。" }
+  ],
+  家装建筑: [
+    { scene: "软装搭配图", tags: ["软装", "搭配"], size: "1536x1024", quality: "high", format: "jpeg", prompt: "生成一张软装搭配方案图。空间为 {scene}，风格 {style}，色彩 {color_palette}。展示家具、灯具、织物与艺术品组合，比例真实，标注区留白，适合提案。", avoid: "避免家具悬浮、透视错误、色彩脏乱。" },
+    { scene: "施工工艺示意", tags: ["工艺", "示意"], size: "1536x1024", prompt: "生成一张家装施工工艺示意图。工艺类型为 {material}，应用空间为 {scene}。画面以剖面或局部放大展示结构层次，材质与节点清楚，适合工程交底。", avoid: "避免结构不合理、危险作业、文字乱码。" },
+    { scene: "全屋鸟瞰图", tags: ["全屋", "鸟瞰"], size: "1536x1024", quality: "high", format: "jpeg", prompt: "生成一张全屋鸟瞰布局图。户型面积为 {subject}，风格 {style}。俯视视角展示分区、动线与家具关系，比例准确，软装完整，适合方案汇报。", avoid: "避免家具比例错误、通道过窄、透视失真。" }
+  ],
+  教育知识: [
+    { scene: "课程大纲图", tags: ["大纲", "课程"], size: "1024x1536", prompt: "生成一张课程大纲视觉底图。课程为 {subject}，学员为 {audience}。画面以层级模块呈现章节结构，图标简洁，留出文字说明区，风格专业。", avoid: "不要生成具体小字、图标风格混乱、信息过密。" },
+    { scene: "学习打卡卡片", tags: ["打卡", "卡片"], size: "1024x1024", prompt: "生成一张学习打卡卡片底图。主题为 {subject}，面向 {audience}，风格 {style}。画面轻松有激励感，包含进度与徽章区域，适合社群运营。", avoid: "不要生成具体数字文字、元素过密、低清晰度。" },
+    { scene: "讲座海报", tags: ["讲座", "海报"], size: "1024x1536", format: "jpeg", prompt: "生成一张学术讲座海报底图。主题为 {subject}，主讲人气质为 {character}，受众为 {audience}。画面庄重专业，包含人物或主题视觉，留出时间地点与主办信息区域。", avoid: "避免虚假机构标识、肖像侵权、文字乱码。" }
+  ],
+  文旅酒店: [
+    { scene: "城市夜景封面", tags: ["夜景", "封面"], size: "1024x1536", quality: "high", format: "jpeg", prompt: "生成一张城市夜景旅游封面。城市或目的地为 {region}，体验为 {selling_points}。画面含地标建筑、灯光与水面反射，蓝调时刻，层次丰富，上方留标题区。", avoid: "避免地标错误、灯光过曝、人群拥挤。" },
+    { scene: "酒店大堂形象图", tags: ["酒店", "大堂"], size: "1536x1024", quality: "high", format: "jpeg", prompt: "生成一张酒店大堂形象图。酒店定位为 {subject}，风格 {style}。画面展示接待台、休息区与材质细节，光线温暖，人物自然，适合官网与 OTA。", avoid: "避免空间比例失真、家具变形、虚假品牌标识。" },
+    { scene: "旅行攻略图组", tags: ["攻略", "图组"], size: "1536x1024", format: "jpeg", prompt: "生成一组旅行攻略配图。目的地为 {region}，主题为 {subject}。多图覆盖风景、美食、交通与住宿，色调统一，适合长图与社媒矩阵发布。", avoid: "避免风格不一致、地标错误、文字乱码。" }
+  ],
+};
+
+const industryTemplateGoals: Record<string, number> = {
+  电商零售: 48,
+  短剧影视: 36,
+  自媒体内容: 44,
+  人物图像: 42,
+  二次元头像: 40,
+  潮流社交: 38,
+  虚拟IP: 38,
+  餐饮茶饮: 26,
+  品牌广告: 26,
+  漫画动漫: 34,
+  美妆护肤: 22,
+  服饰鞋包: 22,
+  跨境电商: 22,
+  直播电商: 22,
+  潮玩玩具: 24,
+  个人IP: 24,
+  母婴宠物: 20,
+  房产本地生活: 20,
+  游戏美术: 26,
+  教育知识: 20,
+  文旅酒店: 20,
+  SaaS科技: 20,
+  金融保险: 20,
+  汽车出行: 20,
+  医美健康: 20,
+  "工业企业与 B2B": 20,
+  家装建筑: 18,
+  法律政务: 18,
+  农业生鲜: 18,
+  运动户外: 18,
+  婚庆摄影: 18,
+  招聘人力: 18,
+  鞋包配饰: 18,
+  美业个护: 18,
+  医疗器械: 18,
+  会展活动: 18,
+  音频播客: 18,
+  本地门店营销: 18,
+  出版内容: 18,
+  手作文创: 18,
+  公益组织: 16,
+  珠宝婚戒: 18,
+  制造加工: 18,
+  能源环保: 18,
+  物流仓储: 18,
+  房产物业: 18,
+  节庆活动: 18,
+  APP产品: 18,
+  包装设计: 18
+};
+
+const mergedIndustryTemplateSeeds: Record<string, TemplateSeed[]> = Object.fromEntries(
+  Array.from(new Set([
+    ...Object.keys(industryTemplateSeeds),
+    ...Object.keys(industryTemplateSeedPack),
+    ...Object.keys(industryTemplateSeedPack2)
+  ])).map((industry) => [
+    industry,
+    [
+      ...(industryTemplateSeeds[industry] ?? []),
+      ...(industryTemplateSeedPack[industry] ?? []),
+      ...(industryTemplateSeedPack2[industry] ?? [])
+    ]
+  ])
+);
+
+
+type PromptClauses = {
+  composition: string;
+  lighting: string;
+  texture: string;
+  layout: string;
+};
+
+const defaultPromptClauses: PromptClauses = {
+  composition: "主体位于画面视觉中心或黄金分割点，层次分明，画面有呼吸感",
+  lighting: "柔和方向光加补光，明暗过渡自然，阴影方向统一",
+  texture: "材质纹理与边缘细节清晰，反光和质感真实",
+  layout: "顶部或侧边预留标题与说明排版区"
+};
+
+const industryPromptClauses: Record<string, Partial<PromptClauses>> = {
+  电商零售: {
+    composition: "主体占画面 65%~85%，居中或三分位，四周留出干净背景",
+    lighting: "柔光箱主光加侧补光，产品反光受控，阴影轻柔",
+    texture: "材质、缝线、印刷与包装细节清晰可辨",
+    layout: "底部或侧边预留卖点与价格区域"
+  },
+  餐饮茶饮: {
+    composition: "45 度或俯拍机位，主体占画面 70%，配菜与餐具做陪体",
+    lighting: "侧逆自然光或柔光箱，食欲感高光，阴影不过重",
+    texture: "食材水分、油脂、酥脆与液体层次真实",
+    layout: "上部或左侧预留菜名与价格区"
+  },
+  短剧影视: {
+    composition: "电影感中近景，人物视线形成对角线，景别有明确叙事目的",
+    lighting: "硬光塑形加环境补光，冷暖对比强调情绪",
+    texture: "服装、妆发与道具质感真实，皮肤细节保留",
+    layout: "上方或下方留出海报标题与平台角标区"
+  },
+  自媒体内容: {
+    composition: "主体偏一侧，另一侧大面积可读留白，构图适合手机竖屏",
+    lighting: "均匀柔和布光，避免面部或产品出现硬阴影",
+    texture: "关键细节锐利，背景适度虚化",
+    layout: "预留 3 行左右标题区与标签位"
+  },
+  人物图像: {
+    composition: "半身或胸像构图，人物视线自然，头肩比例正确",
+    lighting: "窗光或柔光箱塑造轮廓，肤色通透有层次",
+    texture: "皮肤纹理、发丝与服装面料真实，不过度磨皮",
+    layout: "画面上方留出负空间便于裁切"
+  },
+  二次元头像: {
+    composition: "正面或 3/4 侧脸，头部占画面 70%，轮廓干净",
+    lighting: "柔和顶光加轮廓光，眼神高光清晰",
+    texture: "发丝分组清楚，服装与配饰结构完整",
+    layout: "四周留边，方便裁成方形头像"
+  },
+  漫画动漫: {
+    composition: "画面有明确视觉引导线，主体动态清晰，背景衬托不抢戏",
+    lighting: "统一光源方向，色块分明，阴影形状化",
+    texture: "线条干净、上色块面清楚，材质区分明确",
+    layout: "封面类预留标题与卷号区域"
+  },
+  游戏美术: {
+    composition: "角色剪影可读，装备结构完整，画面有明确动势",
+    lighting: "主光加边缘光突出结构，环境光烘托氛围",
+    texture: "金属、皮革、布料与发光材质区分清楚",
+    layout: "UI 类图标居中，四周留安全边距"
+  },
+  品牌广告: {
+    composition: "品牌视觉锤明确，主体与留白比例克制，可延展多尺寸",
+    lighting: "高级商业布光，高光与阴影层次细腻",
+    texture: "产品与材质细节精致，色彩系统统一",
+    layout: "预留主标题、副标题与 logo 安全区"
+  },
+  家装建筑: {
+    composition: "一点或两点透视，比例准确，空间纵深与动线清楚",
+    lighting: "自然光加室内辅助光，窗景与灯光层次自然",
+    texture: "木、石、金属、织物材质真实，接缝合理",
+    layout: "画面下方或角落留方案标注区"
+  },
+  文旅酒店: {
+    composition: "广角叙事构图，前景引导视线，主体建筑或风景位于三分位",
+    lighting: "蓝调时刻或清晨柔光，色温统一有氛围",
+    texture: "建筑材质、植被与水面质感真实",
+    layout: "上方留标题与日期区"
+  },
+  教育知识: {
+    composition: "图文分区清晰，主体与信息模块左右或上下分栏",
+    lighting: "明亮均匀，屏幕与纸张不反光",
+    texture: "纸张、文具与设备细节真实",
+    layout: "预留标题、要点与讲师信息区"
+  },
+  医美健康: {
+    composition: "干净对称构图，人物或器械为主体，空间留白充足",
+    lighting: "柔和面光，肤色与器械反光自然",
+    texture: "皮肤、器械与空间材质真实，无油光",
+    layout: "留出项目说明与免责声明区"
+  },
+  "工业企业与 B2B": {
+    composition: "工业化对称或斜线构图，设备结构完整可辨",
+    lighting: "工位光加顶光，金属高光受控",
+    texture: "金属、涂层与加工纹理清晰",
+    layout: "四周留参数标注区"
+  },
+  汽车出行: {
+    composition: "低机位或 3/4 侧前视角，车身比例准确，线条有引导性",
+    lighting: "大面积柔光反射漆面，轮廓光强化车身线条",
+    texture: "漆面、轮毂与内饰材质真实",
+    layout: "留出车型名与卖点区"
+  },
+  金融保险: {
+    composition: "稳重居中构图，人物与抽象元素比例克制",
+    lighting: "柔和均匀，避免强烈明暗对比",
+    texture: "质感细腻，色彩系统专业",
+    layout: "预留标题与免责说明区"
+  },
+  法律政务: {
+    composition: "端正对称构图，画面秩序感强",
+    lighting: "均匀明亮，阴影干净",
+    texture: "纸张、木饰面与办公材质真实",
+    layout: "预留标题与正文层级区"
+  },
+  农业生鲜: {
+    composition: "主体特写加产地环境做背景层，画面有新鲜感",
+    lighting: "自然日光或逆光透光，突出色泽与水分",
+    texture: "表皮、叶面与土壤质感真实",
+    layout: "留出产地与规格说明区"
+  },
+  SaaS科技: {
+    composition: "模块化构图，界面承载区与氛围元素分层",
+    lighting: "柔和渐变光与边缘高光，避免过曝",
+    texture: "玻璃、金属与界面元素质感现代",
+    layout: "预留功能标题与 CTA 区域"
+  },
+  运动户外: {
+    composition: "低角度动态构图，人物动作有力量与速度感",
+    lighting: "硬朗侧光加环境光，肌肉与装备轮廓清晰",
+    texture: "面料、缓震结构与户外环境质感真实",
+    layout: "留出赛事或产品信息区"
+  },
+  婚庆摄影: {
+    composition: "情感导向构图，人物互动自然，背景仪式感充足",
+    lighting: "暖调柔光与逆光轮廓，层次丰富",
+    texture: "礼服、花艺与场地材质细腻",
+    layout: "预留姓名与日期区"
+  },
+  招聘人力: {
+    composition: "团队或办公场景构图，人物位置有主次",
+    lighting: "明亮自然光，氛围积极",
+    texture: "办公材质与服装细节真实",
+    layout: "预留岗位、薪资与联系方式区"
+  },
+  跨境电商: {
+    composition: "主体居中且留足裁切余量，符合海外平台版式",
+    lighting: "干净商业布光，无偏色",
+    texture: "产品材质与包装细节清晰，避免中文元素",
+    layout: "预留英文标题与要点区"
+  },
+  鞋包配饰: {
+    composition: "微距或 3/4 视角，结构完整，主体占画面 75%",
+    lighting: "精准控光突出纹理与五金高光",
+    texture: "皮革、织物、金属与缝线细节锐利",
+    layout: "留出品牌与规格区"
+  },
+  美业个护: {
+    composition: "干净精致构图，产品与人物皮肤为主体",
+    lighting: "柔光加反射板，肤色通透",
+    texture: "瓶身、膏体与肌肤质感真实",
+    layout: "留出项目与价格说明区"
+  },
+  医疗器械: {
+    composition: "规范操作视角，设备结构完整，人物动作标准",
+    lighting: "均匀洁净布光，无硬阴影",
+    texture: "器械、耗材与空间材质真实",
+    layout: "预留参数与合规说明区"
+  },
+  会展活动: {
+    composition: "广角空间构图，展台结构与动线清楚",
+    lighting: "展位重点照明加环境光，层次分明",
+    texture: "搭建材料、灯箱与屏幕质感真实",
+    layout: "预留展位号与活动信息区"
+  },
+  音频播客: {
+    composition: "方形或竖版居中构图，符号与设备为视觉中心",
+    lighting: "氛围低照度加局部补光",
+    texture: "麦克风、声学板与桌面质感真实",
+    layout: "预留节目名与期数区"
+  },
+  本地门店营销: {
+    composition: "门店或产品为主体，信息分区清楚",
+    lighting: "明亮真实，避免过曝与死黑",
+    texture: "环境、产品与材质细节真实",
+    layout: "预留活动、地址与联系方式区"
+  },
+  出版内容: {
+    composition: "编辑设计感构图，主体与留白比例讲究",
+    lighting: "柔和自然光，色调统一",
+    texture: "纸张、印刷与材质肌理真实",
+    layout: "预留书名、作者与条码区"
+  },
+  手作文创: {
+    composition: "近距离静物构图，手作痕迹为视觉重点",
+    lighting: "柔和侧光突出肌理",
+    texture: "木、陶、织物与纸张质感真实",
+    layout: "预留作品名与价格区"
+  },
+  公益组织: {
+    composition: "纪实感构图，人物与环境关系自然",
+    lighting: "真实自然光，不煽情",
+    texture: "环境与人物细节真实，无过度修饰",
+    layout: "预留活动信息与机构署名区"
+  },
+  潮玩玩具: {
+    composition: "产品居中或微俯视，公仔轮廓清晰",
+    lighting: "棚拍柔光加轻微轮廓光，涂装有光泽",
+    texture: "涂装、材质与包装细节锐利",
+    layout: "预留系列名与发售信息区"
+  },
+  珠宝婚戒: {
+    composition: "微距特写，主体占画面 80%，结构完整",
+    lighting: "精准控光，切面火彩与金属高光受控",
+    texture: "宝石、金属与镶嵌结构细节极致清晰",
+    layout: "留出品牌与价格说明区"
+  },
+  制造加工: {
+    composition: "结构完整的产品视角，加工特征清楚",
+    lighting: "工位光加反射板，金属高光可控",
+    texture: "加工纹理、公差与表面处理清晰",
+    layout: "预留规格与工艺标注区"
+  },
+  能源环保: {
+    composition: "场景叙事构图，设备与环境关系清楚",
+    lighting: "自然光为主，科技感光效克制",
+    texture: "光伏板、机柜与金属结构真实",
+    layout: "预留数据与说明区"
+  },
+  物流仓储: {
+    composition: "纵深透视构图，货架与动线清晰",
+    lighting: "顶光加通道光，空间明亮",
+    texture: "包装、托盘与设备材质真实",
+    layout: "预留业务与时效率说明区"
+  },
+  房产物业: {
+    composition: "空间透视准确，主体与配套关系清楚",
+    lighting: "明亮自然光，室内柔和补光",
+    texture: "建筑、软装与园林材质真实",
+    layout: "预留项目名与卖点区"
+  },
+  节庆活动: {
+    composition: "节庆元素围绕主体排布，视觉中心明确",
+    lighting: "暖调氛围光，节庆高光点缀",
+    texture: "礼盒、装饰与材质细节真实",
+    layout: "预留活动主题与时间区"
+  },
+  直播电商: {
+    composition: "主播位与货盘分区明确，镜头层次丰富",
+    lighting: "三点布光，人物面部干净，背景有层次",
+    texture: "商品、包装与布景材质真实",
+    layout: "预留价格贴片与福利信息区"
+  },
+  APP产品: {
+    composition: "手机承载区居中或偏侧，功能元素围绕展开",
+    lighting: "柔和渐变光，界面可读性优先",
+    texture: "设备、界面与背景材质现代",
+    layout: "预留功能标题与下载引导区"
+  },
+  包装设计: {
+    composition: "包装主体居中，结构展示完整",
+    lighting: "棚拍柔光加反射，印刷质感清晰",
+    texture: "纸张、烫金、哑膜等工艺真实",
+    layout: "预留品牌信息与规格区"
+  },
+  虚拟IP: {
+    composition: "角色正面或 3/4 全身，配饰与轮廓清晰",
+    lighting: "主光加边缘光，色彩明亮统一",
+    texture: "服装、发饰与材质细节完整",
+    layout: "预留角色名与设定信息区"
+  },
+  潮流社交: {
+    composition: "图形化构图，视觉中心突出，留白明确",
+    lighting: "高对比氛围光，色块干净",
+    texture: "贴纸、金属与印刷质感清晰",
+    layout: "预留标题与标签位"
+  },
+};
+
+const clauseDetectors: Array<[keyof PromptClauses, RegExp]> = [
+  ["composition", /构图|镜头|景别|视角|机位|取景/],
+  ["lighting", /光|布光|照明|色温/],
+  ["texture", /材质|纹理|质感/],
+  ["layout", /留白|留出|文字区|标题区|排版|版式/]
+];
+
+function enhancePromptText(prompt: string, industry: string) {
+  const clauses = { ...defaultPromptClauses, ...(industryPromptClauses[industry] ?? {}) };
+  const missing = clauseDetectors
+    .filter(([, pattern]) => !pattern.test(prompt))
+    .map(([key]) => clauses[key]);
+  if (missing.length === 0) return prompt.trim();
+  return `${prompt.trim()}\n画面控制：${missing.join("；")}。`;
+}
+
+const industryAvoidExtra: Record<string, string> = {
+  电商零售: "无平台违规文案、无拼接边框、无夸大承诺。",
+  餐饮茶饮: "无食品安全风险画面、无虚假分量、无过期包装。",
+  短剧影视: "无剧透式标题、无低俗镜头、无人物身份混淆。",
+  自媒体内容: "无诱导性标题文字、无平台违规元素、无侵权素材。",
+  人物图像: "无真实明星肖像、无过度磨皮、无肢体畸形。",
+  二次元头像: "无知名动漫角色复刻、无角色年龄不当表达。",
+  漫画动漫: "无作品侵权、无分镜逻辑错误、无角色漂移。",
+  游戏美术: "无知名游戏 IP 复刻、无装备结构矛盾。",
+  品牌广告: "无未经确认的品牌标识、无虚假宣传语。",
+  家装建筑: "无承重结构错误、无危险施工、无材料不成立。",
+  文旅酒店: "无错误地标、无虚假房型、无隐私信息。",
+  教育知识: "无虚假资质、无升学承诺、无侵权教材内容。",
+  医美健康: "无疗效承诺、无前后对比夸大、无血腥画面。",
+  "工业企业与 B2B": "无虚假认证、无危险操作、无客户保密信息。",
+  汽车出行: "无危险驾驶、无车标错乱、无违法改装暗示。",
+  金融保险: "无收益承诺、无具体金额、无真实机构标识。",
+  法律政务: "无错误条文、无真实机关徽章、无恐吓表达。",
+  农业生鲜: "无虚假有机认证、无腐坏变质质感、无产地造假。",
+  SaaS科技: "无虚假客户 logo、无界面文字乱码、无夸大性能。",
+  运动户外: "无危险动作、无装备使用不当、无虚假成绩。",
+  婚庆摄影: "无肖像侵权、无低俗姿态、无真实宾客信息。",
+  招聘人力: "无虚假薪资、无歧视性表达、无真实员工信息。",
+  跨境电商: "无中文包装文案、无错误英文、无侵权品牌。",
+  鞋包配饰: "无品牌侵权、无结构错误、无廉价质感。",
+  美业个护: "无医疗暗示、无夸大效果、无真实顾客信息。",
+  医疗器械: "无疗效承诺、无违规操作、无真实医院标识。",
+  会展活动: "无虚假主办方、无真实观众信息、无结构不成立。",
+  音频播客: "无音乐版权素材、无真实节目名、无低对比画面。",
+  本地门店营销: "无虚假优惠、无真实顾客信息、无违规承诺。",
+  出版内容: "无版权侵权、无真实出版物封面、无虚假书号。",
+  手作文创: "无材质造假、无结构不成立、无版权图案。",
+  公益组织: "无苦难消费、无真实受助人信息、无夸大成效。",
+  潮玩玩具: "无知名 IP 侵权、无涂装错误、无结构不成立。",
+  珠宝婚戒: "无虚假克拉与材质、无品牌侵权、无结构错误。",
+  制造加工: "无虚假检测报告、无结构矛盾、无违规操作。",
+  能源环保: "无虚假环保数据、无危险施工、无过度科幻。",
+  物流仓储: "无真实运单信息、无违规堆码、无危险作业。",
+  房产物业: "无虚假配套、无真实业主信息、无违规承诺。",
+  节庆活动: "无错误民俗符号、无虚假奖项、无侵权素材。",
+  直播电商: "无虚假价格、无夸大功效、无违规话术。",
+  APP产品: "无虚假评分、无真实用户数据、无侵权图标。",
+  包装设计: "无结构不成立、无虚假认证、无侵权商标。",
+  虚拟IP: "无知名 IP 复刻、无人设冲突、无角色年龄不当。",
+  潮流社交: "无侵权品牌、无低俗表达、无敏感符号。"
+};
+
+function enhanceAvoidText(avoid: string, industry: string) {
+  const extra = industryAvoidExtra[industry];
+  const base = avoid.trim();
+  if (!extra || base.includes(extra)) return base;
+  return base ? `${base.replace(/[。；;]$/, "")}；${extra}` : extra;
+}
+
+function enhanceTemplate(template: Template): Template {
+  const prompt = enhancePromptText(template.prompt, template.industry);
+  const avoid = enhanceAvoidText(template.avoid, template.industry);
+  return prompt === template.prompt && avoid === template.avoid ? template : { ...template, prompt, avoid };
+}
 
 function makeTemplateId(industry: string, index: number) {
   const industryCode = Array.from(industry).map((char) => char.charCodeAt(0).toString(36)).join("_");
@@ -1103,9 +1884,10 @@ function makeSupplementalTemplates(existing: Template[]) {
   const supplemental: Template[] = [];
 
   for (const industry of industries) {
-    const target = industryTemplateGoals[industry] ?? 10;
     const usedScenes = new Set(existing.filter((template) => template.industry === industry).map((template) => template.scene));
-    const seeds = [...(industryTemplateSeeds[industry] ?? []), ...universalTemplateSeeds];
+    const seeds = [...(mergedIndustryTemplateSeeds[industry] ?? []), ...universalTemplateSeeds];
+    // 目标数量只允许用“未重复场景”补齐，避免出现“行业爆款首图 2”这类凑数模板
+    const target = Math.min(industryTemplateGoals[industry] ?? 18, existing.filter((template) => template.industry === industry).length + seeds.length);
     let currentCount = usedScenes.size;
     let seedIndex = 0;
 
@@ -1145,7 +1927,7 @@ function makeSupplementalTemplates(existing: Template[]) {
 const templateLibrary: Template[] = [
   ...baseTemplateLibrary,
   ...makeSupplementalTemplates(baseTemplateLibrary)
-];
+].map(enhanceTemplate);
 
 const variableMeta: Record<string, { label: string; placeholder: string; defaultValue: string }> = {
   product_name: { label: "产品/商品名", placeholder: "例如 玻璃保温杯", defaultValue: "核心产品" },
@@ -1190,6 +1972,67 @@ function fillPromptVariables(text: string, values: VariableValues) {
     const value = values[key]?.trim();
     return value || variableMeta[key]?.defaultValue || "具体业务信息";
   });
+}
+
+const industryQualityLayers: Record<string, string> = {
+  电商零售: "画面要求：商业摄影级棚拍布光，主体边缘干净锐利，材质纹理与色彩准确，阴影自然，符合电商平台主图规范。",
+  餐饮茶饮: "画面要求：美食摄影光线，食材色泽真实诱人，蒸汽与油脂细节自然，桌面整洁，景深柔和。",
+  短剧影视: "画面要求：电影级布光与调色，人物五官稳定，景别有明确叙事意图，画面有情绪张力和戏剧性对比。",
+  漫画动漫: "画面要求：线条干净，上色块面清楚，角色特征在不同画面保持一致，色彩统一，背景不抢主体。",
+  自媒体内容: "画面要求：适合信息流点击的强对比构图，主体占比大，留白位置明确，方便叠加标题与标签。",
+  品牌广告: "画面要求：高级商业广告质感，视觉锤明确，色彩系统统一，主体与留白关系克制，可延展多尺寸物料。",
+  游戏美术: "画面要求：概念设计级绘制精度，材质与结构可读性强，光影方向清楚，轮廓剪影有辨识度。",
+  家装建筑: "画面要求：建筑可视化级渲染，透视与比例准确，材质真实，自然光与人造光层次分明。",
+  文旅酒店: "画面要求：旅行摄影质感，空间与风景真实有层次，光线通透，氛围有代入感与向往感。",
+  教育知识: "画面要求：干净专业的信息化视觉，配色克制，主体清晰，留出标题与要点排版空间。",
+  医美健康: "画面要求：干净医疗健康视觉，肤质与器械真实，光线柔和可信，不夸张、不恐怖。",
+  "工业企业与 B2B": "画面要求：工业级商业质感，结构与材质真实可信，光线克制，留出参数与说明排版区域。",
+  房产本地生活: "画面要求：地产与本地生活实景质感，空间比例准确，光线明亮自然，有人气但不杂乱。",
+  母婴宠物: "画面要求：温暖安全的家庭光线，肤感与毛感柔软真实，场景干净，主体突出。",
+  汽车出行: "画面要求：汽车广告级布光，车身比例与漆面反射真实，环境线条有引导性，动势明确。",
+  金融保险: "画面要求：稳重可信的商务视觉，色调克制，构图端正，避免炫富与夸张表达。",
+  法律政务: "画面要求：庄重清晰的公共机构视觉，画面秩序感强，配色稳重，信息区留白充足。",
+  农业生鲜: "画面要求：自然光田间与生鲜质感，色泽真实不夸张，细节清晰，体现新鲜与可溯源。",
+  SaaS科技: "画面要求：现代产品视觉，界面承载区干净，层次分明，光效克制，适合官网与技术传播。",
+  运动户外: "画面要求：运动商业摄影质感，动势与力量感明确，装备结构清晰，环境光真实。",
+  婚庆摄影: "画面要求：婚礼纪实与样片级光影，人物情绪自然，礼服与花艺细节清楚，色调高级。",
+  招聘人力: "画面要求：真实职场氛围，团队协作自然，光线明亮，构图留有岗位信息空间。",
+  跨境电商: "画面要求：符合海外市场审美的干净商业视觉，英文版式区域完整，主体占画面比例规范。",
+  鞋包配饰: "画面要求：奢侈品级微距与棚拍布光，材质纹理、五金与缝线清晰，配色统一。",
+  美业个护: "画面要求：精致个护视觉，肤质与产品质感真实，光线柔和，环境干净高级。",
+  医疗器械: "画面要求：洁净专业的医疗视觉，设备结构准确，材质真实，光线均匀，操作规范。",
+  会展活动: "画面要求：空间透视准确的活动视觉，灯光与结构层次清楚，人群规模自然，主体明确。",
+  音频播客: "画面要求：温暖有质感的声音内容视觉，设备细节真实，氛围光克制，主体集中在画面中部。",
+  本地门店营销: "画面要求：真实门店与本地生活质感，环境整洁，主体清晰，留出优惠与联系信息区域。",
+  出版内容: "画面要求：编辑设计感强的出版视觉，构图讲究，色彩统一，留出书名与作者排版空间。",
+  手作文创: "画面要求：手工质感与材料肌理清晰，光线柔和，背景质朴，温度感真实。",
+  公益组织: "画面要求：真实克制的公益纪实视觉，人物与环境自然，情绪积极，不做苦难化表达。",
+  潮玩玩具: "画面要求：潮玩产品级布光，涂装与材质细节清晰，色彩年轻有辨识度，背景干净。",
+  珠宝婚戒: "画面要求：珠宝级微距与控光，切面火彩、金属打磨与镶嵌结构真实，背景高级简洁。",
+  制造加工: "画面要求：精密制造视觉，金属与加工纹理真实，结构逻辑成立，光线克制专业。",
+  能源环保: "画面要求：清洁能源与环保场景的真实质感，技术感克制，光影自然，色彩干净。",
+  物流仓储: "画面要求：仓储物流场景真实有序，空间纵深明确，设备与包裹比例准确。",
+  房产物业: "画面要求：物业服务与园区环境的真实质感，空间整洁有序，光线明亮，人物自然。",
+  节庆活动: "画面要求：节庆氛围高级不庸俗，主体与装饰层次清楚，红色与金色使用克制。",
+  直播电商: "画面要求：直播间布景级视觉，灯光层次分明，商品陈列有序，主播位与文字区留白明确。",
+  APP产品: "画面要求：现代 App 产品视觉，手机承载区干净，功能氛围元素简洁，留出标题排版区域。",
+  包装设计: "画面要求：包装提案级渲染，结构与材质可落地，印刷质感真实，背景干净。",
+  个人IP: "画面要求：专业个人品牌视觉，人物气质统一，光线讲究，画面可信有亲和力。"
+};
+
+const defaultQualityLayer = "画面要求：真实商业摄影质感，主体清晰，光源方向一致，材质与纹理细节明确，色彩准确，无 AI 塑料感。";
+const defaultAvoidLayer = "无乱码文字、无水印、无错误肢体、无侵权品牌标识、无低清晰度与透视畸变。";
+
+function qualityLayerForIndustry(industry: string) {
+  return industryQualityLayers[industry] ?? defaultQualityLayer;
+}
+
+function composeRequestPrompt(prompt: string, avoid: string, industry: string) {
+  const trimmedPrompt = prompt.trim();
+  const nextPrompt = trimmedPrompt.includes("画面要求：") ? trimmedPrompt : `${trimmedPrompt}\n${qualityLayerForIndustry(industry)}`;
+  const trimmedAvoid = avoid.trim();
+  const nextAvoid = trimmedAvoid.includes("无乱码文字") ? trimmedAvoid : `${trimmedAvoid ? `${trimmedAvoid}；` : ""}${defaultAvoidLayer}`;
+  return { prompt: nextPrompt, avoid: nextAvoid };
 }
 
 function makePreviewUrl(label: string) {
@@ -1351,7 +2194,7 @@ function makeBatchTask(project: string, industry: string, template: string, coun
 function normalizeImportedTemplate(template: Partial<Template>, index: number): Template | null {
   if (!template.prompt || !template.scene) return null;
   const sizeValidation = validateGptImage2Size(String(template.size ?? "1024x1536"));
-  return {
+  return enhanceTemplate({
     id: template.id?.startsWith("custom-") ? template.id : `custom-import-${Date.now()}-${index}`,
     industry: String(template.industry || "导入模板"),
     scene: String(template.scene),
@@ -1359,10 +2202,10 @@ function normalizeImportedTemplate(template: Partial<Template>, index: number): 
     quality: (["auto", "low", "medium", "high"].includes(String(template.quality)) ? template.quality : "medium") as ImageQuality,
     format: (["png", "jpeg", "webp"].includes(String(template.format)) ? template.format : "png") as ImageFormat,
     prompt: String(template.prompt),
-    avoid: String(template.avoid || "避免文字乱码、水印、主体变形、低清晰度、杂乱背景。"),
+    avoid: String(template.avoid || commonAvoid),
     tags: Array.isArray(template.tags) ? template.tags.map(String).filter(Boolean) : ["导入"],
     custom: true
-  };
+  });
 }
 
 function sleep(ms: number) {
@@ -1378,7 +2221,7 @@ function App() {
   const [variableValues, setVariableValues] = useState<VariableValues>(() => makeVariableValues(templateLibrary[0]));
   const [globalQuery, setGlobalQuery] = useState("");
   const [apiKeySaved, setApiKeySaved] = useState(false);
-  const [apiBaseUrl, setApiBaseUrl] = useState("https://api.quya.org");
+  const [apiBaseUrl, setApiBaseUrl] = useState("https://api.yunqiao.me");
   const [apiProfiles, setApiProfiles] = useState<ApiProfile[]>([]);
   const [apiProfileDraft, setApiProfileDraft] = useState<ApiProfileDraft>(() => makeApiProfileDraft());
   const [activeModelKey, setActiveModelKey] = useState("");
@@ -1521,11 +2364,11 @@ function App() {
 
   function openOfficialSite() {
     if (!bridge?.openExternal) {
-      notify("请访问 quya.org 购买套餐并生成 API Key", "info");
+      notify("请访问 yunqiao.me 购买套餐并生成 API Key", "info");
       return;
     }
-    void bridge.openExternal("https://quya.org").catch((error: unknown) => {
-      const message = error instanceof Error ? error.message : "无法打开 quya.org";
+    void bridge.openExternal("https://yunqiao.me").catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : "无法打开 yunqiao.me";
       notify(message, "warning");
     });
   }
@@ -1629,7 +2472,7 @@ function App() {
   }
 
   function saveCustomTemplate(template: Template) {
-    const normalized: Template = {
+    const normalized: Template = enhanceTemplate({
       ...template,
       id: template.custom ? template.id : `custom-${Date.now()}`,
       industry: template.industry.trim() || "自定义行业",
@@ -1638,7 +2481,7 @@ function App() {
       avoid: template.avoid.trim(),
       tags: template.tags.map((tag) => tag.trim()).filter(Boolean),
       custom: true
-    };
+    });
     if (!normalized.prompt) {
       notify("请填写模板提示词", "warning");
       return;
@@ -1667,10 +2510,15 @@ function App() {
   }
 
   function getRequestParams(): GenerationParams {
+    const composed = composeRequestPrompt(
+      fillPromptVariables(promptText, variableValues),
+      fillPromptVariables(avoidText, variableValues),
+      selectedTemplate.industry
+    );
     return {
       ...generationParams,
-      prompt: fillPromptVariables(promptText, variableValues),
-      avoid: fillPromptVariables(avoidText, variableValues)
+      prompt: composed.prompt,
+      avoid: composed.avoid
     };
   }
 
@@ -2020,7 +2868,11 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
     const nextMode = normalizeProxyMode(proxyMode);
     const nextUrl = proxyUrl.trim();
     if (nextMode === "custom" && !nextUrl) {
-      notify("启用代理后请填写代理地址，例如 http://127.0.0.1:7890", "warning");
+      notify("启用代理后请填写代理地址，例如 http://127.0.0.1:7890 或 socks5://127.0.0.1:7891", "warning");
+      return;
+    }
+    if (nextMode === "custom" && !/^(https?|socks4|socks4a|socks5|socks5h):\/\//i.test(nextUrl)) {
+      notify("代理地址需要以 http://、https://、socks4://、socks5:// 或 socks5h:// 开头", "warning");
       return;
     }
     if (!bridge?.updateSettings) {
@@ -2773,24 +3625,10 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
         </div>
 
         <div className="topActions">
-          <div className="modelSelectWrap">
-            <select
-              className="modelSelect"
-              value={activeModelKey}
-              onChange={(event) => selectActiveModel(event.target.value)}
-              aria-label="选择生图模型"
-            >
-              {modelOptions.length ? modelOptions.map((option) => (
-                <option value={modelOptionKey(option)} key={modelOptionKey(option)}>
-                  {option.provider === "gemini" ? "Gemini" : "GPT"} · {option.model}
-                </option>
-              )) : <option value="">请先配置模型</option>}
-            </select>
-            <ChevronDown size={14} />
-          </div>
+          <ModelSwitcher options={modelOptions} activeKey={activeModelKey} onChange={selectActiveModel} />
           <button className="siteButton" onClick={openOfficialSite}>
             <ExternalLink size={15} />
-            quya.org
+            yunqiao.me
           </button>
           <button className="quotaButton" onClick={() => setActive("API与云端存储设置")}>
             <Gauge size={16} />
@@ -3389,8 +4227,13 @@ function CreatorPage({
   const isEdit = active !== "文生图创作";
   const isRetouch = active === "AI修图工具箱";
   const templateVariables = getTemplateVariables(selectedTemplate);
-  const finalPrompt = fillPromptVariables(promptText, variableValues);
-  const finalAvoid = fillPromptVariables(avoidText, variableValues);
+  const composedPreview = composeRequestPrompt(
+    fillPromptVariables(promptText, variableValues),
+    fillPromptVariables(avoidText, variableValues),
+    selectedTemplate.industry
+  );
+  const finalPrompt = composedPreview.prompt;
+  const finalAvoid = composedPreview.avoid;
   const selectedRetouchTool = retouchTools.find((tool) => tool.id === selectedRetouchToolId) ?? retouchTools[0];
   const activeProvider = activeModel?.provider ?? "openai";
   const isGemini = activeProvider === "gemini";
@@ -3822,7 +4665,7 @@ function ResultInfoPanel({ result, onCopy }: { result?: GenerationResult; onCopy
         <InfoMetric label="状态" value={result.error ? "失败" : result.status} tone={result.error ? "warning" : "success"} />
         <InfoMetric label="来源" value={result.source ?? "未记录"} />
         <InfoMetric label="模型" value={result.requestModel ?? "未记录"} />
-        <InfoMetric label="服务" value={result.requestProvider === "gemini" ? "Gemini" : result.requestProvider === "openai" ? "GPT/quya" : "未记录"} />
+        <InfoMetric label="服务" value={result.requestProvider === "gemini" ? "Gemini" : result.requestProvider === "openai" ? "GPT/云桥" : "未记录"} />
         <InfoMetric label="耗时" value={formatDuration(result.durationMs)} />
         <InfoMetric label="完成时间" value={formatTime(result.completedAt)} />
         <InfoMetric label="返回类型" value={result.responseType ?? "未记录"} />
@@ -4409,7 +5252,7 @@ function SettingsPage({
         <div className="panelHeader">
           <div>
             <h2>API 设置</h2>
-            <p>固定服务地址为 quya.org，不提供自定义 API URL。可保存多组 Key、获取模型列表，并在顶部选择当前生图模型；Key 只保存在本机安全存储中。</p>
+            <p>固定服务地址为 yunqiao.me，不提供自定义 API URL。可保存多组 Key、获取模型列表，并在顶部选择当前生图模型；Key 只保存在本机安全存储中。</p>
           </div>
           <Database size={18} />
         </div>
@@ -4417,7 +5260,7 @@ function SettingsPage({
           <label>
             服务类型
             <select value={apiProfileDraft.provider} onChange={(event) => onApiProfileDraftChange({ provider: event.target.value as ImageProvider })}>
-              <option value="openai">GPT 图像 / quya.org</option>
+              <option value="openai">GPT 图像 / yunqiao.me</option>
               <option value="gemini">Gemini 图像</option>
             </select>
           </label>
@@ -4466,7 +5309,7 @@ function SettingsPage({
             <div className={`apiProfileRow ${activeModel?.profileId === profile.id ? "active" : ""}`} key={profile.id}>
               <div>
                 <strong>{profile.name}</strong>
-                <span>{profile.provider === "gemini" ? "Gemini" : "GPT/quya"} · {profile.selectedModel} · {profile.hasKey ? "Key 已保存" : "未保存 Key"}</span>
+                <span>{profile.provider === "gemini" ? "Gemini" : "GPT/云桥"} · {profile.selectedModel} · {profile.hasKey ? "Key 已保存" : "未保存 Key"}</span>
               </div>
               <div className="buttonRow compactButtons">
                 <button className="secondaryButton" onClick={() => onEditApiProfile(profile)}>编辑</button>
@@ -4514,18 +5357,18 @@ function SettingsPage({
             </div>
           )}
           <label>
-            单独 HTTP/HTTPS 代理地址
+            单独代理地址（HTTP / HTTPS / SOCKS5）
             <input
               value={proxyUrl}
               onChange={(event) => onProxyUrlChange(event.target.value)}
-              placeholder="http://127.0.0.1:7890"
+              placeholder="socks5://127.0.0.1:7891 或 http://127.0.0.1:7890"
               disabled={proxyMode !== "custom"}
             />
           </label>
           <small className="fieldHint">
             {proxyMode === "system"
-              ? "系统代理会读取 Windows/macOS 当前网络代理；如使用 PAC 脚本，会先解析为可用的 HTTP/HTTPS 代理。取消勾选后可改用单独代理或直连。"
-              : "单独代理支持 http://host:port、https://host:port，也可填写 http://user:pass@host:port。"}
+              ? "系统代理会读取 Windows/macOS 当前网络代理；支持解析为 HTTP/HTTPS/SOCKS 代理，如使用 PAC 脚本会先解析出可用代理。取消勾选后可改用单独代理或直连。"
+              : "支持 http://host:port、https://host:port、socks5://host:port（默认 1080）、socks5h:// 让代理解析域名、socks4://；带账号密码写法 socks5://user:pass@host:port。"}
           </small>
           <div className="buttonRow">
             <button className="secondaryButton" onClick={onSaveProxySettings}>

@@ -1,12 +1,13 @@
 {
   "name": "yunqiao-pro",
-  "version": "0.1.20",
+  "version": "0.1.21",
   "private": true,
   "description": "云桥Pro AI生图桌面端",
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
     "test": "tsx scripts/test-core.mjs",
+    "test:socks": "node scripts/test-socks.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "build": "electron-vite build",

@@ -3,7 +3,7 @@
 版本: v1.0  
 日期: 2026-06-28  
 模型: `gpt-image-2` / `gpt-image-2.5-flare` / `gpt-image-2.5-sunburst` / `gemini-3.1-flash-image`
-固定 API Base URL: `https://api.quya.org`
+固定 API Base URL: `https://api.yunqiao.me`
 
 ## 1. 产品定位
 
@@ -284,7 +284,7 @@
 - `negative_prompt`
 - `steps`
 - `sampler`
-- `input_fidelity`。默认不在 UI 暴露、不主动传。GPT 图像模型对图片输入按服务能力处理；若 `api.quya.org` 实测兼容该字段，可在开发者实验开关中启用。
+- `input_fidelity`。默认不在 UI 暴露、不主动传。GPT 图像模型对图片输入按服务能力处理；若 `api.yunqiao.me` 实测兼容该字段，可在开发者实验开关中启用。
 
 相似度 UI 设计:
 
@@ -466,10 +466,10 @@ Excel 字段建议:
 API Base URL 默认值:
 
 ```text
-https://api.quya.org
+https://api.yunqiao.me
 ```
 
-客户端固定使用 `https://api.quya.org`，设置页不提供自定义 API 地址入口；GPT 使用 `/v1/images/*`，Gemini 使用 `/v1beta/models/*`。
+客户端固定使用 `https://api.yunqiao.me`，设置页不提供自定义 API 地址入口；GPT 使用 `/v1/images/*`，Gemini 使用 `/v1beta/models/*`。
 
 密钥处理:
 
@@ -523,7 +523,7 @@ https://api.quya.org
 基础生成:
 
 - 用户能配置 API Key。
-- 用户能使用固定 API Base URL `https://api.quya.org` 发起生图请求。
+- 用户能使用固定 API Base URL `https://api.yunqiao.me` 发起生图请求。
 - 单次默认生成 1 张图片；多图数量参数暂不传递，避免中转接口和官方接口返回 `tools[0].n` 错误。
 - 图片能保存到本地作品库。
 

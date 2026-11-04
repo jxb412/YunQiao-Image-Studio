@@ -11,16 +11,17 @@ import Minio from "minio";
 import qiniu from "qiniu";
 import ObsClient from "esdk-obs-nodejs";
 import SftpClient from "ssh2-sftp-client";
-import { ProxyAgent, type Dispatcher } from "undici";
+import { Agent, ProxyAgent, type Dispatcher } from "undici";
 
 import { createImageEdit, createImageGeneration } from "../shared/imageApi";
 import type { ImageApiFetch } from "../shared/imageApi";
 import type { ImageEditRequest, ImageGenerationRequest, ImageProvider } from "../shared/imageApiTypes";
 import { DEFAULT_OPENAI_MODEL, OPENAI_IMAGE_MODELS } from "../shared/imageModels";
+import { SOCKS_PROTOCOLS, createSocksConnector, parseSocksProxyConfig } from "./socksProxy";
 
 let mainWindow: BrowserWindow | null = null;
 let encryptedApiKey: Buffer | null = null;
-const FIXED_API_BASE_URL = "https://api.quya.org";
+const FIXED_API_BASE_URL = "https://api.yunqiao.me";
 const GEMINI_API_BASE_URL = `${FIXED_API_BASE_URL}/v1beta`;
 const DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-image";
 const FALLBACK_GEMINI_IMAGE_MODELS = ["gemini-3.1-flash-image", "gemini-3-pro-image-preview", "gemini-2.5-flash-image"];
@@ -116,6 +117,14 @@ function normalizeProvider(value: unknown): ImageProvider {
   return value === "gemini" ? "gemini" : "openai";
 }
 
+function migrateProfileName(name: string, provider: ImageProvider) {
+  const trimmed = name.trim();
+  if (!trimmed || /^quya\b/i.test(trimmed) || /quya\s*GPT/i.test(trimmed)) {
+    return provider === "gemini" ? "Gemini 图像" : "云桥 GPT 图像";
+  }
+  return trimmed;
+}
+
 function defaultModelsForProvider(provider: ImageProvider) {
   return provider === "gemini" ? [DEFAULT_GEMINI_MODEL] : [...OPENAI_IMAGE_MODELS];
 }
@@ -128,7 +137,7 @@ function defaultApiProfile(): PersistedApiProfile {
   const now = Date.now();
   return {
     id: "quya-openai-default",
-    name: "quya GPT 图像",
+    name: "云桥 GPT 图像",
     provider: "openai",
     apiBaseUrl: FIXED_API_BASE_URL,
     models: [...OPENAI_IMAGE_MODELS],
@@ -154,7 +163,7 @@ function normalizeApiProfile(value: unknown, fallbackIndex = 0): PersistedApiPro
   const now = Date.now();
   return {
     id: typeof source.id === "string" && source.id.trim() ? source.id.trim() : `api-profile-${now}-${fallbackIndex}`,
-    name: typeof source.name === "string" && source.name.trim() ? source.name.trim() : provider === "gemini" ? "Gemini 图像" : "quya GPT 图像",
+    name: migrateProfileName(typeof source.name === "string" ? source.name : "", provider),
     provider,
     apiBaseUrl: defaultBaseUrlForProvider(provider),
     models: models.includes(selectedModel) ? models : [selectedModel, ...models],
@@ -214,22 +223,29 @@ function normalizeProxyMode(value: unknown): ProxyMode {
   return "system";
 }
 
+const HTTP_PROXY_PROTOCOLS = new Set(["http:", "https:"]);
+
 function normalizeProxyUrl(value: unknown) {
   const raw = typeof value === "string" ? value.trim() : "";
   if (!raw) return "";
   const withProtocol = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `http://${raw}`;
   const parsed = new URL(withProtocol);
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    throw new Error("代理地址仅支持 http 或 https 协议");
+  const protocol = parsed.protocol.toLowerCase();
+  if (!HTTP_PROXY_PROTOCOLS.has(protocol) && !SOCKS_PROTOCOLS.has(protocol)) {
+    throw new Error("代理地址仅支持 http、https、socks4、socks5 协议");
   }
   if (!parsed.hostname) {
     throw new Error("代理地址缺少主机");
+  }
+  if (!parsed.port) {
+    parsed.port = protocol.startsWith("socks") ? "1080" : "80";
   }
   if ((parsed.pathname && parsed.pathname !== "/") || parsed.search || parsed.hash) {
     throw new Error("代理地址只需要填写协议、主机、端口和可选账号密码");
   }
   return parsed.toString().replace(/\/$/, "");
 }
+
 
 function normalizeProxySettings(settings: Partial<AppSettings>, strict: boolean) {
   const proxyMode = normalizeProxyMode(settings.proxyMode);
@@ -452,8 +468,6 @@ function decodeDataUrl(dataUrl: string) {
   return Buffer.from(dataUrl.slice(commaIndex + 1), "base64");
 }
 
-let proxyDispatcherCache: { url: string; dispatcher: Dispatcher } | null = null;
-
 function maskProxyUrl(proxyUrl: string) {
   if (!proxyUrl) return "";
   try {
@@ -497,11 +511,16 @@ function proxyUrlFromSystemRule(ruleText: string): ProxyResolution {
       const proxyUrl = normalizeProxyUrl(host.includes("://") ? host : `https://${host}`);
       return { proxyUrl, label: `系统代理 ${maskProxyUrl(proxyUrl)}`, rule };
     }
+    if (type === "SOCKS" || type === "SOCKS5" || type === "SOCKS4") {
+      const scheme = type === "SOCKS4" ? "socks4" : "socks5";
+      const proxyUrl = normalizeProxyUrl(host.includes("://") ? host : `${scheme}://${host}`);
+      return { proxyUrl, label: `系统代理 ${maskProxyUrl(proxyUrl)}`, rule };
+    }
 
     unsupported = unsupported || rule;
   }
 
-  const warning = unsupported ? `系统代理解析为 ${unsupported}，当前仅支持 HTTP/HTTPS 代理，已使用直连` : undefined;
+  const warning = unsupported ? `系统代理解析为 ${unsupported}，暂不支持该代理类型，已使用直连` : undefined;
   return {
     proxyUrl: "",
     label: unsupported ? "系统代理不可用，已直连" : "系统代理未启用，已直连",
@@ -517,24 +536,33 @@ async function activeProxyResolution(targetUrl: string, settings: Pick<AppSettin
 
   if (settings.proxyMode === "custom") {
     const proxyUrl = normalizeProxyUrl(settings.proxyUrl);
-    return { proxyUrl, label: `手动代理 ${maskProxyUrl(proxyUrl)}` };
+    const protocol = new URL(proxyUrl).protocol.replace(":", "").toUpperCase();
+    return { proxyUrl, label: `手动代理（${protocol}）${maskProxyUrl(proxyUrl)}` };
   }
 
   const rule = await session.defaultSession.resolveProxy(targetUrl);
   return proxyUrlFromSystemRule(rule || "DIRECT");
 }
 
+const proxyDispatcherCache = new Map<string, Dispatcher>();
+
 function getProxyDispatcher(proxyUrl: string) {
   if (!proxyUrl) return undefined;
-  if (proxyDispatcherCache?.url === proxyUrl) return proxyDispatcherCache.dispatcher;
-  if (proxyDispatcherCache) {
-    void proxyDispatcherCache.dispatcher.close();
+  const cached = proxyDispatcherCache.get(proxyUrl);
+  if (cached) return cached;
+
+  let dispatcher: Dispatcher;
+  const socksConfig = parseSocksProxyConfig(proxyUrl);
+  if (socksConfig) {
+    dispatcher = new Agent({
+      connect: createSocksConnector(socksConfig) as never,
+      connectTimeout: 20000
+    });
+  } else {
+    dispatcher = new ProxyAgent(proxyUrl);
   }
-  proxyDispatcherCache = {
-    url: proxyUrl,
-    dispatcher: new ProxyAgent(proxyUrl)
-  };
-  return proxyDispatcherCache.dispatcher;
+  proxyDispatcherCache.set(proxyUrl, dispatcher);
+  return dispatcher;
 }
 
 async function fetchWithProxy(url: string, init: RequestInit = {}, settings?: Pick<AppSettings, "proxyMode" | "proxyUrl">) {
@@ -1220,8 +1248,9 @@ function resolveRequestProfile(settings: AppSettings, request?: Pick<ImageGenera
 
 async function getApiKeyForProfile(profile: PersistedApiProfile) {
   if (profile.provider === "gemini" && process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
-  if (profile.provider === "openai" && process.env.QUYA_API_KEY) return process.env.QUYA_API_KEY;
-  if (profile.provider === "openai" && process.env.YUNQIAO_API_KEY) return process.env.YUNQIAO_API_KEY;
+  if (profile.provider === "openai" && (process.env.YUNQIAO_API_KEY || process.env.QUYA_API_KEY)) {
+    return process.env.YUNQIAO_API_KEY || process.env.QUYA_API_KEY || "";
+  }
 
   const profileSecret = await readApiProfileSecret(profile.id);
   if (profileSecret.apiKey) return profileSecret.apiKey;
@@ -1274,7 +1303,7 @@ ipcMain.handle("settings:save-api-profile", async (_event, payload: {
   const profile = normalizeApiProfile({
     ...existing,
     id: existing?.id ?? `api-profile-${now}`,
-    name: payload.name?.trim() || existing?.name || (provider === "gemini" ? "Gemini 图像" : "quya GPT 图像"),
+    name: migrateProfileName(payload.name?.trim() || existing?.name || "", provider),
     provider,
     selectedModel,
     models,

@@ -1,5 +1,5 @@
 {
-  "fixedApiBaseUrl": "https://api.quya.org",
+  "fixedApiBaseUrl": "https://api.yunqiao.me",
   "apiBaseUrlCustomizable": false,
   "defaultModel": "gpt-image-2",
   "geminiDefaultModel": "gemini-3.1-flash-image",

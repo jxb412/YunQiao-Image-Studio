@@ -27,7 +27,9 @@ module.exports = [
       "out/**",
       "release/**",
       "dist/**",
-      "build/**"
+      "build/**",
+      ".tmp/**",
+      "release-assets/**"
     ]
   },
   ...tseslint.configs.recommended,

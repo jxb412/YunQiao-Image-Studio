@@ -87,10 +87,10 @@ const geminiResult = await createImageGeneration(
     geminiAspectRatio: "1:1"
   },
   "test-key",
-  "https://api.quya.org",
+  "https://api.yunqiao.me",
   1000,
   async (url, init) => {
-    assert.equal(url, "https://api.quya.org/v1beta/models/gemini-3.1-flash-image:generateContent");
+    assert.equal(url, "https://api.yunqiao.me/v1beta/models/gemini-3.1-flash-image:generateContent");
     assert.equal(init.headers.Authorization, "Bearer test-key");
     const requestBody = JSON.parse(init.body);
     assert.equal(requestBody.generationConfig.imageConfig.aspectRatio, "1:1");

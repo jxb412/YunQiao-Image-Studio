@@ -38,18 +38,18 @@ Windows 已保护你的电脑
 GPT 图像服务使用：
 
 ```text
-quya.org
+yunqiao.me
 ```
 
-用户需要先到 `quya.org` 购买套餐并生成 Key，然后在 `API与云端存储设置` 页面保存模型配置。
+用户需要先到 `yunqiao.me` 购买套餐并生成 Key，然后在 `API与云端存储设置` 页面保存模型配置。
 
-如果使用 Gemini 图像模型，请在同一页面选择 `Gemini 图像`，填写 quya.org 分配的 Gemini Key，点击 `获取模型` 后选择 `gemini-3.1-flash-image` 或其他可用图像模型。
+如果使用 Gemini 图像模型，请在同一页面选择 `Gemini 图像`，填写 yunqiao.me 分配的 Gemini Key，点击 `获取模型` 后选择 `gemini-3.1-flash-image` 或其他可用图像模型。
 
 GPT 图像配置默认提供 `gpt-image-2`、`gpt-image-2.5-flare` 和 `gpt-image-2.5-sunburst`。三者都支持文生图、图生图、局部重绘和 AI 修图，顶部模型选择器切换后，后续请求会使用对应模型。
 
 设置页支持：
 
-- 固定服务地址为 `quya.org`，不提供自定义 API URL 输入。
+- 固定服务地址为 `yunqiao.me`，不提供自定义 API URL 输入。
 - 保存多组 API Key 到本机安全存储。
 - 每组 Key 绑定服务类型、配置名称和选中的图像模型。
 - 顶部工具栏选择当前生图模型，文生图、图生图、AI 修图和批量工坊都会使用该模型。

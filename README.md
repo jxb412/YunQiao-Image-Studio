@@ -2,23 +2,23 @@
 
 YunQiao Image Studio（云桥图像工坊 / 云桥Pro）是一款开源的 AI 图像生成与编辑桌面工具，基于 Electron、React 和 TypeScript 构建。它面向电商、短剧、自媒体、设计团队和商业内容生产场景，支持文生图、图生图、批量生产、行业模板、素材管理、AI 修图工具箱和云端存储。
 
-项目支持 OpenAI 兼容的 `gpt-image-2`、`gpt-image-2.5-flare`、`gpt-image-2.5-sunburst` 与 Gemini 图像模型：两类图像接口都走 `quya.org` 服务，可保存多组 Key、获取模型列表，并在顶部模型选择器切换当前生图模型。
+项目支持 OpenAI 兼容的 `gpt-image-2`、`gpt-image-2.5-flare`、`gpt-image-2.5-sunburst` 与 Gemini 图像模型：两类图像接口都走 `yunqiao.me` 服务，可保存多组 Key、获取模型列表，并在顶部模型选择器切换当前生图模型。
 
 ## 最新版本
 
-当前发布版本：`v0.1.20`
+当前发布版本：`v0.1.21`
 
 GitHub Release 下载页：
 
 ```text
-https://github.com/jxb412/YunQiao-Image-Studio/releases/tag/v0.1.20
+https://github.com/jxb412/YunQiao-Image-Studio/releases/tag/v0.1.21
 ```
 
 客户端文件：
 
-- Windows x64 便携版：`YunQiao-Image-Studio-0.1.20-win-x64-portable.exe`
-- macOS Intel x64：`YunQiao-Image-Studio-0.1.20-mac-x64.dmg`
-- macOS Apple Silicon arm64：`YunQiao-Image-Studio-0.1.20-mac-arm64.dmg`
+- Windows x64 便携版：`YunQiao-Image-Studio-0.1.21-win-x64-portable.exe`
+- macOS Intel x64：`YunQiao-Image-Studio-0.1.21-mac-x64.dmg`
+- macOS Apple Silicon arm64：`YunQiao-Image-Studio-0.1.21-mac-arm64.dmg`
 
 Windows 版本下载后双击即可运行，不需要安装 Node.js、npm 或 Electron。当前开源构建未购买代码签名证书，Windows 首次运行可能出现 SmartScreen “Windows 已保护你的电脑 / 发布者未知”提示，处理方式见本文的 Windows 首次运行说明。macOS 版本当前未做 Apple Developer ID 签名和公证，首次打开方式见本文的 macOS 说明。
 
@@ -28,13 +28,22 @@ Windows 版本下载后双击即可运行，不需要安装 Node.js、npm 或 El
 - 图生图继续编辑：载入本地图片或生成结果，继续二次创作。
 - AI 修图工具箱：扩图、去杂物、换背景、统一色调、商品光影、人像精修、局部重绘等。
 - 批量生产工坊：支持 Excel 导入、多任务队列、批量图生图、底图文件夹绑定、暂停/继续/停止、失败重试和日志导出。
-- 行业模板库：内置电商、短剧、自媒体、漫画动漫、人物图像、二次元头像、潮流社交、虚拟IP、游戏美术、餐饮、品牌广告等模板。
+- 行业模板库：内置 1120+ 条模板，覆盖电商零售、短剧影视、自媒体、漫画动漫、人物图像、二次元头像、潮流社交、虚拟IP、游戏美术、餐饮茶饮、品牌广告、家装建筑、文旅酒店、教育知识、医美健康、B2B、跨境、直播、潮玩、珠宝等 46 个行业，并自动补齐构图/光线/质感/排版画面控制与行业负向词。
 - 作品素材库：保存生成结果、提示词、参数快照、本地路径和云端 URL。
 - 云端存储：支持 OSS、COS、OBS、七牛、MinIO、FTP、SFTP。
-- 多模型接口：支持 quya.org / `gpt-image-2`、`gpt-image-2.5-flare`、`gpt-image-2.5-sunburst` 与 Gemini 图像模型，可保存多组 Key 并选择当前模型。
-- 程序代理：默认勾选跟随 Windows/macOS 系统代理，取消后可选择单独 HTTP/HTTPS 代理或直连。
+- 多模型接口：支持 yunqiao.me / `gpt-image-2`、`gpt-image-2.5-flare`、`gpt-image-2.5-sunburst` 与 Gemini 图像模型，可保存多组 Key 并选择当前模型。
+- 程序代理：默认勾选跟随 Windows/macOS 系统代理，取消后可选择单独代理或直连；单独代理支持 `http://`、`https://`、`socks5://`、`socks5h://`、`socks4://`、`socks4a://`（含账号密码）。
 - 本机安全存储：API Key 和云存储密钥只保存在本机安全存储中。
 - 跨平台配置：同一套代码支持 Windows 和 macOS 构建。
+
+## v0.1.21 更新重点
+
+- 顶部模型切换器重做为深色浮层，修复原生下拉白底浅字看不清的问题。
+- 代理设置新增 SOCKS（socks5 / socks5h / socks4 / socks4a）支持，系统代理规则同样支持 SOCKS；新增独立 `src/main/socksProxy.ts`，零新增依赖。
+- 行业模板库扩充到 1120+ 条、46 个行业，新增 60+ 场景；提示词自动补齐构图/光线/质感/排版画面控制，并追加行业负向词。
+- 模板补齐逻辑改为只使用未重复场景，去掉“行业爆款首图 2/3”这类凑数模板。
+- 窗口自适应与视觉细节优化：中等宽度双列布局、吸顶面板不再被裁切、窄窗口顶栏收敛、模板卡片文字与按钮不再错位。
+- 服务域名统一为 `yunqiao.me`，历史“quya GPT 图像”配置名自动迁移为“云桥 GPT 图像”。
 
 ## v0.1.20 更新重点
 
@@ -47,7 +56,7 @@ Windows 版本下载后双击即可运行，不需要安装 Node.js、npm 或 El
 
 - 新增 Gemini 图像模型接入，支持 `gemini-3.1-flash-image` 文生图、图生图和 AI 修图。
 - API 设置升级为多 Key 多模型配置，可获取模型列表，并在顶部模型选择器切换当前生图模型。
-- GPT 与 Gemini 图像接口统一使用 quya.org 服务；客户端固定服务地址，不提供自定义 API URL。
+- GPT 与 Gemini 图像接口统一使用 yunqiao.me 服务；客户端固定服务地址，不提供自定义 API URL。
 - GPT 与 Gemini 使用不同参数区：GPT 保留尺寸、质量、格式和背景；Gemini 使用输出大小与画幅比例。
 - Gemini 返回图片会读取真实 MIME 类型，结果面板可显示返回类型、图片类型、尺寸、文件大小和耗时。
 - 批量生产工坊跟随当前模型，支持 GPT/Gemini 文生图与图生图任务，并按模型显示尺寸规则。
@@ -91,12 +100,12 @@ npm run build
 
 在应用内打开 `API与云端存储设置` 页面，填写：
 
-- 固定服务地址：`quya.org`，客户端不提供自定义 API URL 输入。
-- GPT 图像服务：使用 `quya.org`，请先到 `quya.org` 购买套餐并生成 GPT Key。
-- Gemini 图像服务：同样使用 `quya.org`，请保存 Gemini Key，点击 `获取模型` 后选择 `gemini-3.1-flash-image` 等图像模型。
+- 固定服务地址：`yunqiao.me`，客户端不提供自定义 API URL 输入。
+- GPT 图像服务：使用 `yunqiao.me`，请先到 `yunqiao.me` 购买套餐并生成 GPT Key。
+- Gemini 图像服务：同样使用 `yunqiao.me`，请保存 Gemini Key，点击 `获取模型` 后选择 `gemini-3.1-flash-image` 等图像模型。
 - 多 Key 管理：可保存多组客户 Key，每组 Key 绑定对应模型；顶部工具栏可选择当前生图模型。
 - 请求超时时间：默认 300 秒，最高 600 秒。
-- 程序代理：默认勾选跟随系统代理；取消后可选择单独 HTTP/HTTPS 代理或直连；保存后会用于 API、生图、修图、更新检查和远程图片下载。
+- 程序代理：默认勾选跟随系统代理；取消后可选择单独 HTTP/HTTPS/SOCKS 代理或直连；保存后会用于 API、生图、修图、更新检查和远程图片下载。
 - 测试 API：可在设置页直接测试当前模型配置的连通性，并查看状态码、耗时和返回摘要。
 
 ## 图片生成说明
@@ -106,7 +115,7 @@ npm run build
 - GPT 文生图：可使用 `gpt-image-2`、`gpt-image-2.5-flare` 或 `gpt-image-2.5-sunburst` 生成图片。
 - GPT 图生图：可使用以上任一 GPT 图像模型基于输入图片继续编辑。
 - GPT 局部重绘 / AI 修图：可使用以上任一 GPT 图像模型的图片编辑能力处理原图。
-- Gemini：使用 `quya.org` 的 Gemini 原生接口生成或编辑图片，参数区会切换为 Gemini 输出大小和画幅比例。
+- Gemini：使用 `yunqiao.me` 的 Gemini 原生接口生成或编辑图片，参数区会切换为 Gemini 输出大小和画幅比例。
 
 三个 GPT 图像模型共用 OpenAI 兼容的 `/v1/images/generations` 和 `/v1/images/edits` 接口。设置页获取模型失败或服务端没有返回模型列表时，客户端仍会显示这三个内置模型；已有的旧配置也会自动补齐，不需要重新添加 API Key。
 

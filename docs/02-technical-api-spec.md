@@ -5,13 +5,13 @@
 
 ## 1. 目标
 
-本规范用于把云桥Pro 从 PRD 变成可开发的桌面应用。GPT 图像参数以 OpenAI GPT Image 官方文档为基准，客户端连接 `https://api.quya.org`；Gemini 图像模型走 quya.org 的 Gemini 原生兼容接口，并使用独立参数区。
+本规范用于把云桥Pro 从 PRD 变成可开发的桌面应用。GPT 图像参数以 OpenAI GPT Image 官方文档为基准，客户端连接 `https://api.yunqiao.me`；Gemini 图像模型走 yunqiao.me 的 Gemini 原生兼容接口，并使用独立参数区。
 
 ## 2. 服务配置
 
 ```ts
 export const IMAGE_API_CONFIG = {
-  defaultBaseURL: "https://api.quya.org",
+  defaultBaseURL: "https://api.yunqiao.me",
   model: "gpt-image-2", // 也支持 gpt-image-2.5-flare / gpt-image-2.5-sunburst
   geminiModel: "gemini-3.1-flash-image",
   generationPath: "/v1/images/generations",
@@ -22,7 +22,7 @@ export const IMAGE_API_CONFIG = {
 };
 ```
 
-应用支持多组模型配置：OpenAI 兼容图像模型和 Gemini 图像模型都固定使用 `https://api.quya.org`。设置页提供 Key 保存、模型列表读取、顶部模型选择、超时时间和连通性测试。
+应用支持多组模型配置：OpenAI 兼容图像模型和 Gemini 图像模型都固定使用 `https://api.yunqiao.me`。设置页提供 Key 保存、模型列表读取、顶部模型选择、超时时间和连通性测试。
 
 密钥来源:
 
@@ -44,7 +44,7 @@ Authorization: Bearer <api_key>
 端点:
 
 ```http
-POST https://api.quya.org/v1/images/generations
+POST https://api.yunqiao.me/v1/images/generations
 Content-Type: application/json
 ```
 
@@ -98,7 +98,7 @@ Content-Type: application/json
 | 2K 横图 | `2048x1152` | 影视概念和横版封面 |
 | 2K 竖图 | `1152x2048` | 竖版海报和高清封面 |
 
-注意: 若 `api.quya.org` 的代理暂不支持任意尺寸，需要在适配层降级到 `1024x1024`、`1536x1024`、`1024x1536`。
+注意: 若 `api.yunqiao.me` 的代理暂不支持任意尺寸，需要在适配层降级到 `1024x1024`、`1536x1024`、`1024x1536`。
 
 ## 4. 图生图和编辑接口
 
@@ -107,7 +107,7 @@ Content-Type: application/json
 端点:
 
 ```http
-POST https://api.quya.org/v1/images/edits
+POST https://api.yunqiao.me/v1/images/edits
 ```
 
 推荐使用 multipart/form-data 发送本地文件:
@@ -192,8 +192,8 @@ gemini-3.1-flash-image
 端点:
 
 ```http
-GET https://api.quya.org/v1beta/models
-POST https://api.quya.org/v1beta/models/gemini-3.1-flash-image:generateContent
+GET https://api.yunqiao.me/v1beta/models
+POST https://api.yunqiao.me/v1beta/models/gemini-3.1-flash-image:generateContent
 Authorization: Bearer <api_key>
 Content-Type: application/json
 ```
