@@ -3435,3 +3435,13 @@ p {
   padding-bottom: 10px;
   margin-bottom: 8px;
 }
+
+/* 面板内滚动底部渐隐，提示还有内容可滚动 */
+.workspaceCreator .composerPanel,
+.workspaceCreator .inspectorPanel {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 14px), rgba(0, 0, 0, 0.25) 100%);
+}
+
+.workspaceCreator .stagePanel {
+  box-shadow: inset 0 -20px 18px -20px rgba(3, 8, 20, 0.85);
+}
