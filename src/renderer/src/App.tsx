@@ -2273,6 +2273,11 @@ function App() {
   const [batchRetryLimit, setBatchRetryLimit] = useState(1);
   const batchControlRef = useRef<BatchControlStatus>("idle");
   const autoUpdateCheckedRef = useRef(false);
+  const workspaceRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    workspaceRef.current?.scrollTo({ top: 0 });
+  }, [active]);
 
   const currentHint = useMemo(() => pageHints[active] ?? "管理云桥Pro工作流。", [active]);
   const queuedCount = useMemo(() => batchTasks.filter((task) => task.status === "已导入" || task.status === "生成中").length, [batchTasks]);
@@ -3657,7 +3662,7 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
         </div>
       </aside>
 
-      <section className="workspace">
+      <section className={`workspace ${isCreatorActive ? "workspaceCreator" : ""}`} ref={workspaceRef}>
         <div className="pageHead">
           <div>
             <div className="eyebrow">Yunqiao Pro Console</div>

@@ -3330,3 +3330,108 @@ p {
 .stagePanel .resultTile {
   max-height: 300px;
 }
+
+/* ---------- 宽屏下左侧编排面板吸顶 + 面板内滚动，避免被页面滚动截断 ---------- */
+
+@media (min-width: 1181px) {
+  .composerPanel {
+    position: sticky;
+    top: 4px;
+    max-height: calc(100vh - 236px);
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+
+  .composerPanel::-webkit-scrollbar {
+    width: 8px;
+  }
+}
+
+/* ---------- 创作页改为三栏独立滚动（页面不滚，杜绝“内容被截断”的错觉） ---------- */
+
+.workspaceCreator {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0 20px 14px;
+}
+
+.workspaceCreator > .pageHead {
+  position: static;
+  flex: 0 0 auto;
+  margin: 0 -20px 12px;
+  padding: 14px 20px 10px;
+}
+
+.workspaceCreator > .creatorLayout {
+  flex: 1 1 auto;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.workspaceCreator .composerPanel,
+.workspaceCreator .stagePanel,
+.workspaceCreator .inspectorPanel {
+  position: static;
+  max-height: 100%;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.workspaceCreator .creatorLayout {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+@media (min-width: 1181px) and (max-width: 1680px) {
+  .workspaceCreator .creatorLayout {
+    grid-template-rows: minmax(0, 1.25fr) minmax(0, 1fr);
+  }
+}
+
+.workspaceCreator .stagePanel {
+  display: flex;
+  flex-direction: column;
+}
+
+.workspaceCreator .stagePanel .resultGrid {
+  flex: 0 0 auto;
+}
+
+.workspaceCreator .composerPanel::-webkit-scrollbar,
+.workspaceCreator .stagePanel::-webkit-scrollbar,
+.workspaceCreator .inspectorPanel::-webkit-scrollbar {
+  width: 8px;
+}
+
+/* 编排面板占满整列高度，结果与参数在右列上下分栏 */
+.workspaceCreator .composerPanel {
+  grid-column: 1;
+  grid-row: 1 / -1;
+}
+
+@media (min-width: 1181px) and (max-width: 1680px) {
+  .workspaceCreator .stagePanel {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .workspaceCreator .inspectorPanel {
+    grid-column: 2;
+    grid-row: 2;
+  }
+}
+
+.workspaceCreator .resultTile,
+.workspaceCreator .singleResult .resultTile {
+  max-height: 236px;
+}
+
+.workspaceCreator .stagePanel {
+  padding: 12px;
+}
+
+.workspaceCreator .stageToolbar {
+  padding-bottom: 10px;
+  margin-bottom: 8px;
+}
