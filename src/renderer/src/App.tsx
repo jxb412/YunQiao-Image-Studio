@@ -1967,11 +1967,6 @@ function makeVariableValues(template: Template, previous: VariableValues = {}) {
   }, {});
 }
 
-const RASTERIZE_EXTENSIONS = new Set(["gif", "svg"]);
-
-function fileExtensionOf(name: string) {
-  return (name.split(".").pop() ?? "").toLowerCase();
-}
 
 async function rasterizeToPng(dataUrl: string, fallbackSize = 1024) {
   const image = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -3234,32 +3229,6 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
     await uploadAsset(asset);
   }
 
-  async function prepareEditSourceImages(images: Array<{ path: string; name: string; dataUrl: string }>) {
-    const prepared: Array<{ path: string; name: string; dataUrl: string }> = [];
-    for (const image of images) {
-      const extension = fileExtensionOf(image.name);
-      if (!RASTERIZE_EXTENSIONS.has(extension)) {
-        prepared.push(image);
-        continue;
-      }
-      try {
-        const raster = await rasterizeToPng(image.dataUrl);
-        const saved = await bridge?.saveTempImage?.({
-          dataUrl: raster.dataUrl,
-          name: `${image.name.replace(/\.[^.]+$/, "")}-png`
-        });
-        prepared.push({
-          path: saved?.path ?? image.path,
-          name: image.name.replace(/\.[^.]+$/, ".png"),
-          dataUrl: raster.dataUrl
-        });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "GIF/SVG 转换失败";
-        notify(`${image.name} 转换失败：${message}`, "warning");
-      }
-    }
-    return prepared;
-  }
 
   async function applyEditSourceImages(images: Array<{ path: string; name: string; dataUrl: string }>) {
     if (!images.length) {
@@ -3293,40 +3262,34 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
     notify(`已载入 ${images.length} 张底图`);
   }
 
-  async function chooseEditSourceImage() {
-    if (!bridge?.chooseImages) {
-      notify("当前运行环境不支持选择本地图片，请使用桌面客户端", "warning");
-      return;
-    }
-    try {
-      const images = await bridge.chooseImages();
-      if (!images.length) return;
-      const prepared = await prepareEditSourceImages(images);
-      if (!prepared.length) return;
-      await applyEditSourceImages(prepared);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "选择图片失败";
-      notify(`选择图片失败：${message}`, "warning");
-    }
-  }
 
-  async function importDroppedImages(files: File[]) {
-    const imageFiles = files.filter((file) => /\.(png|jpe?g|webp|gif|svg)$/i.test(file.name));
+  async function importLocalImages(files: File[]) {
+    const imageFiles = files.filter((file) => file.type.startsWith("image/") || /\.(png|jpe?g|webp|gif|svg)$/i.test(file.name));
     if (!imageFiles.length) {
-      notify("请拖入 PNG/JPG/WEBP/GIF/SVG 图片文件", "warning");
+      notify("请选择 PNG/JPG/WEBP/GIF/SVG 图片文件", "warning");
       return;
     }
-    const loaded = await Promise.all(imageFiles.map(async (file) => {
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result ?? ""));
-        reader.onerror = () => reject(new Error(`无法读取 ${file.name}`));
-        reader.readAsDataURL(file);
-      });
-      const filePath = (file as File & { path?: string }).path ?? "";
-      return { path: filePath, name: file.name, dataUrl };
-    }));
-    const prepared = await prepareEditSourceImages(loaded);
+    const prepared: Array<{ path: string; name: string; dataUrl: string }> = [];
+    for (const file of imageFiles) {
+      try {
+        const rawDataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result ?? ""));
+          reader.onerror = () => reject(new Error(`无法读取 ${file.name}`));
+          reader.readAsDataURL(file);
+        });
+        const raster = await rasterizeToPng(rawDataUrl);
+        const saved = await bridge?.saveTempImage?.({
+          dataUrl: raster.dataUrl,
+          name: `${file.name.replace(/\.[^.]+$/, "")}-png`
+        });
+        const filePath = saved?.path || (file as File & { path?: string }).path || "";
+        prepared.push({ path: filePath, name: file.name.replace(/\.[^.]+$/, ".png"), dataUrl: raster.dataUrl });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "图片读取失败";
+        notify(`${file.name} 读取失败：${message}`, "warning");
+      }
+    }
     if (!prepared.length) return;
     await applyEditSourceImages(prepared);
     if (active !== "图生图与局部重绘" && active !== "AI修图工具箱") {
@@ -3832,8 +3795,7 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
             onUploadSelected={uploadSelectedResult}
             onCopyImage={() => copyImageToClipboard(results.find((item) => item.id === selectedResultId) ?? results.find((item) => item.dataUrl))}
             onOpenFileLocation={() => openSelectedFileLocation(results.find((item) => item.id === selectedResultId) ?? results.find((item) => item.localPath))}
-            onChooseSourceImage={chooseEditSourceImage}
-            onDropImages={importDroppedImages}
+            onImportImages={importLocalImages}
             onApplyRetouchTool={applyRetouchTool}
             onGenerate={generateImages}
             onCopy={copyText}
@@ -4276,8 +4238,7 @@ function CreatorPage({
   onUploadSelected,
   onCopyImage,
   onOpenFileLocation,
-  onChooseSourceImage,
-  onDropImages,
+  onImportImages,
   onApplyRetouchTool,
   onGenerate,
   onCopy,
@@ -4318,14 +4279,14 @@ function CreatorPage({
   onUploadSelected: () => void;
   onCopyImage: () => void;
   onOpenFileLocation: () => void;
-  onChooseSourceImage: () => void;
-  onDropImages: (files: File[]) => void;
+  onImportImages: (files: File[]) => void;
   onApplyRetouchTool: (toolId: string) => void;
   onGenerate: () => void;
   onCopy: (text: string, label: string) => void;
   onNotify: (message: string, type?: Toast["type"]) => void;
 }) {
   const isEdit = active !== "文生图创作";
+  const sourceFileInputRef = useRef<HTMLInputElement | null>(null);
   const isRetouch = active === "AI修图工具箱";
   const templateVariables = getTemplateVariables(selectedTemplate);
   const composedPreview = composeRequestPrompt(
@@ -4405,26 +4366,47 @@ function CreatorPage({
         )}
 
         {isEdit && (
-          <button
-            className="uploadDrop"
-            onClick={onChooseSourceImage}
-            onDragOver={(event) => {
-              event.preventDefault();
-              event.dataTransfer.dropEffect = "copy";
-            }}
-            onDrop={(event) => {
-              event.preventDefault();
-              const files = Array.from(event.dataTransfer.files ?? []);
-              if (files.length) onDropImages(files);
-            }}
-          >
-            <UploadCloud size={20} />
-            <span>
-              {isRetouch
-                ? "点击选择原图，或把图片拖到这里（PNG/JPG/WEBP/GIF/SVG）"
-                : "点击选择底图，或把图片拖到这里（PNG/JPG/WEBP/GIF/SVG）"}
-            </span>
-          </button>
+          <>
+            <input
+              ref={sourceFileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+              multiple
+              className="hiddenFileInput"
+              onChange={(event) => {
+                const files = Array.from(event.target.files ?? []);
+                event.target.value = "";
+                if (files.length) onImportImages(files);
+              }}
+            />
+            <div
+              className="uploadDrop"
+              role="button"
+              tabIndex={0}
+              onClick={() => sourceFileInputRef.current?.click()}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  sourceFileInputRef.current?.click();
+                }
+              }}
+              onDragOver={(event) => {
+                event.preventDefault();
+                event.dataTransfer.dropEffect = "copy";
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                const files = Array.from(event.dataTransfer.files ?? []);
+                if (files.length) onImportImages(files);
+              }}
+            >
+              <UploadCloud size={20} />
+              <span>
+                {isRetouch ? "选择本机原图（点击浏览，或把图片拖到这里）" : "选择本机底图（点击浏览，或把图片拖到这里）"}
+              </span>
+              <em className="uploadDropHint">PNG / JPG / WEBP / GIF / SVG</em>
+            </div>
+          </>
         )}
 
         {isRetouch && (
