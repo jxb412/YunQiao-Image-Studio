@@ -6,21 +6,21 @@ YunQiao Image Studio（云桥图像工坊 / 云桥Pro）是一款开源的 AI �
 
 ## 最新版本
 
-当前发布版本：`v0.1.23`
+当前发布版本：`v0.1.24`
 
 GitHub Release 下载页：
 
 ```text
-https://github.com/jxb412/YunQiao-Image-Studio/releases/tag/v0.1.23
+https://github.com/jxb412/YunQiao-Image-Studio/releases/tag/v0.1.24
 ```
 
 客户端文件（公开下载）：
 
 | 平台 | 文件 | 下载地址 |
 | --- | --- | --- |
-| Windows x64 便携版 | `YunQiao-Image-Studio-0.1.23-win-x64-portable.exe` | https://down.haowucm.cn/YunQiao-Image-Studio-0.1.23-win-x64-portable.exe |
-| macOS Apple Silicon | `YunQiao-Image-Studio-0.1.23-mac-arm64.dmg` | https://down.haowucm.cn/YunQiao-Image-Studio-0.1.23-mac-arm64.dmg |
-| macOS Intel | `YunQiao-Image-Studio-0.1.23-mac-x64.dmg` | https://down.haowucm.cn/YunQiao-Image-Studio-0.1.23-mac-x64.dmg |
+| Windows x64 便携版 | `YunQiao-Image-Studio-0.1.24-win-x64-portable.exe` | https://down.haowucm.cn/YunQiao-Image-Studio-0.1.24-win-x64-portable.exe |
+| macOS Apple Silicon | `YunQiao-Image-Studio-0.1.24-mac-arm64.dmg` | https://down.haowucm.cn/YunQiao-Image-Studio-0.1.24-mac-arm64.dmg |
+| macOS Intel | `YunQiao-Image-Studio-0.1.24-mac-x64.dmg` | https://down.haowucm.cn/YunQiao-Image-Studio-0.1.24-mac-x64.dmg |
 
 更新清单（客户端自动检查更新使用）：https://down.haowucm.cn/latest.json
 
@@ -42,7 +42,7 @@ Windows 版本下载后双击即可运行，不需要安装 Node.js、npm 或 El
 - 本机安全存储：API Key 和云存储密钥只保存在本机安全存储中。
 - 跨平台配置：同一套代码支持 Windows 和 macOS 构建。
 
-## v0.1.23 更新重点
+## v0.1.24 更新重点
 
 - 顶部模型切换器重做为深色浮层，修复原生下拉白底浅字看不清的问题。
 - 代理设置新增 SOCKS（socks5 / socks5h / socks4 / socks4a）支持，系统代理规则同样支持 SOCKS；新增独立 `src/main/socksProxy.ts`，零新增依赖。

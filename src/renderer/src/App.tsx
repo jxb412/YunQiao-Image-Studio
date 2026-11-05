@@ -4367,6 +4367,13 @@ function CreatorPage({
 
         {isEdit && (
           <>
+            <div className="sourceActions">
+              <button className="primaryButton" onClick={() => sourceFileInputRef.current?.click()}>
+                <FolderOpen size={15} />
+                {isRetouch ? "打开图片" : "选择本地图片"}
+              </button>
+              <span className="sourceActionsHint">PNG / JPG / WEBP / GIF / SVG</span>
+            </div>
             <input
               ref={sourceFileInputRef}
               type="file"
@@ -4402,7 +4409,7 @@ function CreatorPage({
             >
               <UploadCloud size={20} />
               <span>
-                {isRetouch ? "选择本机原图（点击浏览，或把图片拖到这里）" : "选择本机底图（点击浏览，或把图片拖到这里）"}
+                {isRetouch ? "也可以直接把原图拖到这里" : "也可以直接把图片拖到这里"}
               </span>
               <em className="uploadDropHint">PNG / JPG / WEBP / GIF / SVG</em>
             </div>
