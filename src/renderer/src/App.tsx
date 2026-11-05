@@ -1967,6 +1967,33 @@ function makeVariableValues(template: Template, previous: VariableValues = {}) {
   }, {});
 }
 
+const RASTERIZE_EXTENSIONS = new Set(["gif", "svg"]);
+
+function fileExtensionOf(name: string) {
+  return (name.split(".").pop() ?? "").toLowerCase();
+}
+
+async function rasterizeToPng(dataUrl: string, fallbackSize = 1024) {
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const element = new Image();
+    element.onload = () => resolve(element);
+    element.onerror = () => reject(new Error("图片解析失败，请换一张图片"));
+    element.src = dataUrl;
+  });
+  const naturalWidth = image.naturalWidth || fallbackSize;
+  const naturalHeight = image.naturalHeight || fallbackSize;
+  const scale = Math.min(1, 2048 / Math.max(naturalWidth, naturalHeight));
+  const width = Math.max(1, Math.round(naturalWidth * scale));
+  const height = Math.max(1, Math.round(naturalHeight * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("画布初始化失败");
+  context.drawImage(image, 0, 0, width, height);
+  return { dataUrl: canvas.toDataURL("image/png"), width, height };
+}
+
 function fillPromptVariables(text: string, values: VariableValues) {
   return text.replace(placeholderPattern, (_match, key: string) => {
     const value = values[key]?.trim();
@@ -3207,13 +3234,38 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
     await uploadAsset(asset);
   }
 
-  async function chooseEditSourceImage() {
-    if (!bridge?.chooseImages) {
-      notify("当前运行环境不支持选择本地图片，请使用桌面客户端", "warning");
+  async function prepareEditSourceImages(images: Array<{ path: string; name: string; dataUrl: string }>) {
+    const prepared: Array<{ path: string; name: string; dataUrl: string }> = [];
+    for (const image of images) {
+      const extension = fileExtensionOf(image.name);
+      if (!RASTERIZE_EXTENSIONS.has(extension)) {
+        prepared.push(image);
+        continue;
+      }
+      try {
+        const raster = await rasterizeToPng(image.dataUrl);
+        const saved = await bridge?.saveTempImage?.({
+          dataUrl: raster.dataUrl,
+          name: `${image.name.replace(/\.[^.]+$/, "")}-png`
+        });
+        prepared.push({
+          path: saved?.path ?? image.path,
+          name: image.name.replace(/\.[^.]+$/, ".png"),
+          dataUrl: raster.dataUrl
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "GIF/SVG 转换失败";
+        notify(`${image.name} 转换失败：${message}`, "warning");
+      }
+    }
+    return prepared;
+  }
+
+  async function applyEditSourceImages(images: Array<{ path: string; name: string; dataUrl: string }>) {
+    if (!images.length) {
+      notify("没有可用底图，请选择 PNG/JPG/WEBP/GIF/SVG 图片", "warning");
       return;
     }
-    const images = await bridge.chooseImages();
-    if (!images.length) return;
     setEditSourcePaths(images.map((image) => image.path));
     const first = images[0];
     const dimensions = await readImageDimensions(first.dataUrl);
@@ -3239,6 +3291,47 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
     setResults([importedResult]);
     setSelectedResultId(importedResult.id);
     notify(`已载入 ${images.length} 张底图`);
+  }
+
+  async function chooseEditSourceImage() {
+    if (!bridge?.chooseImages) {
+      notify("当前运行环境不支持选择本地图片，请使用桌面客户端", "warning");
+      return;
+    }
+    try {
+      const images = await bridge.chooseImages();
+      if (!images.length) return;
+      const prepared = await prepareEditSourceImages(images);
+      if (!prepared.length) return;
+      await applyEditSourceImages(prepared);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "选择图片失败";
+      notify(`选择图片失败：${message}`, "warning");
+    }
+  }
+
+  async function importDroppedImages(files: File[]) {
+    const imageFiles = files.filter((file) => /\.(png|jpe?g|webp|gif|svg)$/i.test(file.name));
+    if (!imageFiles.length) {
+      notify("请拖入 PNG/JPG/WEBP/GIF/SVG 图片文件", "warning");
+      return;
+    }
+    const loaded = await Promise.all(imageFiles.map(async (file) => {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result ?? ""));
+        reader.onerror = () => reject(new Error(`无法读取 ${file.name}`));
+        reader.readAsDataURL(file);
+      });
+      const filePath = (file as File & { path?: string }).path ?? "";
+      return { path: filePath, name: file.name, dataUrl };
+    }));
+    const prepared = await prepareEditSourceImages(loaded);
+    if (!prepared.length) return;
+    await applyEditSourceImages(prepared);
+    if (active !== "图生图与局部重绘" && active !== "AI修图工具箱") {
+      setActive("图生图与局部重绘");
+    }
   }
 
   async function importBatchExcel() {
@@ -3740,6 +3833,7 @@ function makeAssetFromResult(result: GenerationResult, params: GenerationParams)
             onCopyImage={() => copyImageToClipboard(results.find((item) => item.id === selectedResultId) ?? results.find((item) => item.dataUrl))}
             onOpenFileLocation={() => openSelectedFileLocation(results.find((item) => item.id === selectedResultId) ?? results.find((item) => item.localPath))}
             onChooseSourceImage={chooseEditSourceImage}
+            onDropImages={importDroppedImages}
             onApplyRetouchTool={applyRetouchTool}
             onGenerate={generateImages}
             onCopy={copyText}
@@ -4183,6 +4277,7 @@ function CreatorPage({
   onCopyImage,
   onOpenFileLocation,
   onChooseSourceImage,
+  onDropImages,
   onApplyRetouchTool,
   onGenerate,
   onCopy,
@@ -4224,6 +4319,7 @@ function CreatorPage({
   onCopyImage: () => void;
   onOpenFileLocation: () => void;
   onChooseSourceImage: () => void;
+  onDropImages: (files: File[]) => void;
   onApplyRetouchTool: (toolId: string) => void;
   onGenerate: () => void;
   onCopy: (text: string, label: string) => void;
@@ -4309,9 +4405,25 @@ function CreatorPage({
         )}
 
         {isEdit && (
-          <button className="uploadDrop" onClick={onChooseSourceImage}>
+          <button
+            className="uploadDrop"
+            onClick={onChooseSourceImage}
+            onDragOver={(event) => {
+              event.preventDefault();
+              event.dataTransfer.dropEffect = "copy";
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              const files = Array.from(event.dataTransfer.files ?? []);
+              if (files.length) onDropImages(files);
+            }}
+          >
             <UploadCloud size={20} />
-            <span>{isRetouch ? "选择要修的原图，或从作品库继续编辑" : "选择底图或从作品库载入"}</span>
+            <span>
+              {isRetouch
+                ? "点击选择原图，或把图片拖到这里（PNG/JPG/WEBP/GIF/SVG）"
+                : "点击选择底图，或把图片拖到这里（PNG/JPG/WEBP/GIF/SVG）"}
+            </span>
           </button>
         )}
 
@@ -4389,7 +4501,7 @@ function CreatorPage({
             </button>
             <button className="secondaryButton" onClick={onOpenFileLocation}>
               <FolderOpen size={15} />
-              文件位置
+              打开所在文件夹
             </button>
             <button className="secondaryButton" onClick={onSaveImage}>
               <Download size={15} />

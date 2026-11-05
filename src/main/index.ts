@@ -593,6 +593,9 @@ async function readImagePayload(dataUrlOrUrl: string, settings?: Pick<AppSetting
 }
 
 function mimeFromPath(filePath: string) {
+  const lower = path.extname(filePath).toLowerCase();
+  if (lower === ".gif") return "image/gif";
+  if (lower === ".svg") return "image/svg+xml";
   const ext = path.extname(filePath).toLowerCase();
   if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg";
   if (ext === ".webp") return "image/webp";
@@ -1437,7 +1440,7 @@ ipcMain.handle("dialog:choose-images", async () => {
     properties: ["openFile", "multiSelections"],
     title: "选择图生图底图",
     filters: [
-      { name: "图片文件", extensions: ["png", "jpg", "jpeg", "webp"] }
+      { name: "图片文件（PNG/JPG/WEBP/GIF/SVG）", extensions: ["png", "jpg", "jpeg", "webp", "gif", "svg"] }
     ]
   });
   if (result.canceled || result.filePaths.length === 0) return [];

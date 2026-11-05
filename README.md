@@ -2,25 +2,25 @@
 
 YunQiao Image Studio（云桥图像工坊 / 云桥Pro）是一款开源的 AI 图像生成与编辑桌面工具，基于 Electron、React 和 TypeScript 构建。它面向电商、短剧、自媒体、设计团队和商业内容生产场景，支持文生图、图生图、批量生产、行业模板、素材管理、AI 修图工具箱和云端存储。
 
-项目支持 OpenAI 兼容的 `gpt-image-2`、`gpt-image-2.5-flare`、`gpt-image-2.5-sunburst` 与 Gemini 图像模型：两类图像接口都走 `yunqiao.me` 服务，可保存多组 Key、获取模型列表，并在顶部模型选择器切换当前生图模型。
+项目支持 OpenAI 兼容的 `gpt-image-2`、`gpt-image-2.5-flare`、`gpt-image-2.5-sunburst`、`gpt-image-2.6-flare`、`gpt-image-2.6-sunburst` 与 Gemini 图像模型：两类图像接口都走 `yunqiao.me` 服务，可保存多组 Key、获取模型列表，并在顶部模型选择器切换当前生图模型。
 
 ## 最新版本
 
-当前发布版本：`v0.1.21`
+当前发布版本：`v0.1.22`
 
 GitHub Release 下载页：
 
 ```text
-https://github.com/jxb412/YunQiao-Image-Studio/releases/tag/v0.1.21
+https://github.com/jxb412/YunQiao-Image-Studio/releases/tag/v0.1.22
 ```
 
 客户端文件（公开下载）：
 
 | 平台 | 文件 | 下载地址 |
 | --- | --- | --- |
-| Windows x64 便携版 | `YunQiao-Image-Studio-0.1.21-win-x64-portable.exe` | https://down.haowucm.cn/YunQiao-Image-Studio-0.1.21-win-x64-portable.exe |
-| macOS Apple Silicon | `YunQiao-Image-Studio-0.1.21-mac-arm64.dmg` | https://down.haowucm.cn/YunQiao-Image-Studio-0.1.21-mac-arm64.dmg |
-| macOS Intel | `YunQiao-Image-Studio-0.1.21-mac-x64.dmg` | https://down.haowucm.cn/YunQiao-Image-Studio-0.1.21-mac-x64.dmg |
+| Windows x64 便携版 | `YunQiao-Image-Studio-0.1.22-win-x64-portable.exe` | https://down.haowucm.cn/YunQiao-Image-Studio-0.1.22-win-x64-portable.exe |
+| macOS Apple Silicon | `YunQiao-Image-Studio-0.1.22-mac-arm64.dmg` | https://down.haowucm.cn/YunQiao-Image-Studio-0.1.22-mac-arm64.dmg |
+| macOS Intel | `YunQiao-Image-Studio-0.1.22-mac-x64.dmg` | https://down.haowucm.cn/YunQiao-Image-Studio-0.1.22-mac-x64.dmg |
 
 更新清单（客户端自动检查更新使用）：https://down.haowucm.cn/latest.json
 
@@ -37,12 +37,12 @@ Windows 版本下载后双击即可运行，不需要安装 Node.js、npm 或 El
 - 行业模板库：内置 1120+ 条模板，覆盖电商零售、短剧影视、自媒体、漫画动漫、人物图像、二次元头像、潮流社交、虚拟IP、游戏美术、餐饮茶饮、品牌广告、家装建筑、文旅酒店、教育知识、医美健康、B2B、跨境、直播、潮玩、珠宝等 46 个行业，并自动补齐构图/光线/质感/排版画面控制与行业负向词。
 - 作品素材库：保存生成结果、提示词、参数快照、本地路径和云端 URL。
 - 云端存储：支持 OSS、COS、OBS、七牛、MinIO、FTP、SFTP。
-- 多模型接口：支持 yunqiao.me / `gpt-image-2`、`gpt-image-2.5-flare`、`gpt-image-2.5-sunburst` 与 Gemini 图像模型，可保存多组 Key 并选择当前模型。
+- 多模型接口：支持 yunqiao.me / `gpt-image-2`、`gpt-image-2.5-flare`、`gpt-image-2.5-sunburst`、`gpt-image-2.6-flare`、`gpt-image-2.6-sunburst` 与 Gemini 图像模型，可保存多组 Key 并选择当前模型。
 - 程序代理：默认勾选跟随 Windows/macOS 系统代理，取消后可选择单独代理或直连；单独代理支持 `http://`、`https://`、`socks5://`、`socks5h://`、`socks4://`、`socks4a://`（含账号密码）。
 - 本机安全存储：API Key 和云存储密钥只保存在本机安全存储中。
 - 跨平台配置：同一套代码支持 Windows 和 macOS 构建。
 
-## v0.1.21 更新重点
+## v0.1.22 更新重点
 
 - 顶部模型切换器重做为深色浮层，修复原生下拉白底浅字看不清的问题。
 - 代理设置新增 SOCKS（socks5 / socks5h / socks4 / socks4a）支持，系统代理规则同样支持 SOCKS；新增独立 `src/main/socksProxy.ts`，零新增依赖。
@@ -77,7 +77,7 @@ Windows 版本下载后双击即可运行，不需要安装 Node.js、npm 或 El
 - Lucide React
 - OpenAI 兼容图片接口
 - Gemini 图像接口
-- 默认图片模型：`gpt-image-2`，可切换 `gpt-image-2.5-flare`、`gpt-image-2.5-sunburst` 和 Gemini 图像模型
+- 默认图片模型：`gpt-image-2`，可切换 `gpt-image-2.5-flare`、`gpt-image-2.5-sunburst`、`gpt-image-2.6-flare`、`gpt-image-2.6-sunburst` 和 Gemini 图像模型
 
 ## 快速开始
 

@@ -51,7 +51,7 @@ assert.equal(body.model, "gpt-image-2");
 assert.equal(body.size, "1024x1024");
 assert.equal(Object.hasOwn(body, "n"), false);
 
-for (const model of ["gpt-image-2.5-flare", "gpt-image-2.5-sunburst"]) {
+for (const model of ["gpt-image-2.5-flare", "gpt-image-2.5-sunburst", "gpt-image-2.6-flare", "gpt-image-2.6-sunburst"]) {
   const modelBody = buildImageRequestBodyForTest({
     model,
     prompt: "测试新模型",
@@ -60,7 +60,7 @@ for (const model of ["gpt-image-2.5-flare", "gpt-image-2.5-sunburst"]) {
   assert.equal(modelBody.model, model);
   assert.equal(Object.hasOwn(modelBody, "n"), false);
 }
-assert.deepEqual(OPENAI_IMAGE_MODELS, ["gpt-image-2", "gpt-image-2.5-flare", "gpt-image-2.5-sunburst"]);
+assert.deepEqual(OPENAI_IMAGE_MODELS, ["gpt-image-2", "gpt-image-2.5-flare", "gpt-image-2.5-sunburst", "gpt-image-2.6-flare", "gpt-image-2.6-sunburst"]);
 
 const geminiBody = await buildGeminiRequestBodyForTest({
   provider: "gemini",

@@ -73,6 +73,9 @@ function toBlobPart(bytes: Buffer) {
 }
 
 function mimeFromPath(filePath: string) {
+  const lower = filePath.toLowerCase();
+  if (lower.endsWith(".gif")) return "image/gif";
+  if (lower.endsWith(".svg")) return "image/svg+xml";
   const ext = path.extname(filePath).toLowerCase();
   if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg";
   if (ext === ".webp") return "image/webp";
